@@ -109,6 +109,8 @@ env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
   uv python install 3.12
+chown -R root:root "$PYTHON_DIR"
+chmod -R u+rwX,go-rwx "$PYTHON_DIR"
 env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
