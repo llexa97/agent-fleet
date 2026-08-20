@@ -18,6 +18,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { CreateChannelDialog, CreateSpaceDialog } from '../components/channels/CreateChannelDialogs'
+import { ChannelAgentsDialog } from '../components/channels/ChannelAgentsDialog'
 import { MentionComposer } from '../components/channels/MentionComposer'
 import { MessageItem } from '../components/channels/MessageItem'
 import { Button } from '../components/ui/Button'
@@ -37,6 +38,7 @@ export function ChannelsPage() {
   const [spaceId, setSpaceId] = useState<UUID | undefined>()
   const [spaceDialogOpen, setSpaceDialogOpen] = useState(false)
   const [channelDialogOpen, setChannelDialogOpen] = useState(false)
+  const [agentsDialogOpen, setAgentsDialogOpen] = useState(false)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [channelSearch, setChannelSearch] = useState('')
 
@@ -173,7 +175,7 @@ export function ChannelsPage() {
                 <select aria-label="Choisir un channel" value={routeChannelId} onChange={(event) => void navigate(`/channels/${event.target.value}`)}>{channelsQuery.data?.map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select>
                 <button type="button" aria-label="Créer un channel" onClick={() => setChannelDialogOpen(true)}><Plus size={16} /></button>
               </div>
-              <div className="conversation__actions"><div className="avatar-stack avatar-stack--header">{(membersQuery.data ?? []).slice(0, 4).map((member) => <span key={member.actor_id} className={`avatar avatar--${member.actor_type}`}>{member.actor_type === 'agent' ? <Bot size={13} /> : initials(member.display_name)}</span>)}</div><button className="icon-button" aria-label="Plus d’options"><MoreHorizontal size={19} /></button></div>
+              <div className="conversation__actions"><div className="avatar-stack avatar-stack--header">{(membersQuery.data ?? []).slice(0, 4).map((member) => <span key={member.actor_id} className={`avatar avatar--${member.actor_type}`}>{member.actor_type === 'agent' ? <Bot size={13} /> : initials(member.display_name)}</span>)}</div><button type="button" className="icon-button" aria-label="Gérer les agents du channel" onClick={() => setAgentsDialogOpen(true)}><MoreHorizontal size={19} /></button></div>
             </header>
             <div className="message-list" aria-live="polite" aria-busy={messagesQuery.isLoading}>
               {messagesQuery.isLoading ? <LoadingState label="Chargement de l’historique…" /> : null}
@@ -239,6 +241,16 @@ export function ChannelsPage() {
         initialSpaceId={effectiveSpaceId}
         onCreated={(newChannelId, newSpaceId) => { setSpaceId(newSpaceId); void navigate(`/channels/${newChannelId}`) }}
       />
+      {selectedChannel ? (
+        <ChannelAgentsDialog
+          open={agentsDialogOpen}
+          onOpenChange={setAgentsDialogOpen}
+          channelId={selectedChannel.id}
+          channelName={selectedChannel.name}
+          spaceId={selectedChannel.space_id}
+          members={membersQuery.data ?? []}
+        />
+      ) : null}
     </div>
   )
 }

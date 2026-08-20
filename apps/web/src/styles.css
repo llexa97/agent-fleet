@@ -80,6 +80,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .dialog-heading h2 { margin: 0 0 6px; color: var(--ink); font-size: 20px; }
 .dialog-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 9px; padding-top: 4px; }
+.channel-agents-dialog { display: grid; gap: 20px; }.channel-agents-dialog > section { display: grid; gap: 10px; }.channel-agents-dialog h3 { margin: 0; color: #344054; font-size: 13px; }.channel-agents-dialog .muted { margin: 0; color: var(--muted); font-size: 11px; }.channel-agents-dialog .muted a { color: var(--accent); }.channel-agent-list { display: grid; gap: 8px; }.channel-agent-list > div { display: flex; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: #fafbfc; }.channel-agent-list > div > span:last-child { display: grid; gap: 2px; }.channel-agent-list strong { color: #344054; font-size: 12px; }.channel-agent-list small { color: var(--muted); font-size: 9px; }.channel-agent-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; }
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes dialog-in { from { opacity: 0; transform: translate(-50%, -47%) scale(.98); } }
 .inline-error { margin: 0; padding: 9px 11px; border-radius: 7px; background: var(--red-soft); color: #b32d2d; font-size: 12px; line-height: 1.45; }

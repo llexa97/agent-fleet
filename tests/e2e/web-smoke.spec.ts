@@ -91,3 +91,58 @@ test('OpenCode est proposé comme harness lors de la création d’un agent', as
   await expect(harness).toHaveValue('opencode')
   await expect(harness.getByRole('option', { name: 'OpenCode ACP' })).toHaveCount(1)
 })
+
+test('un propriétaire ajoute un agent existant à un channel', async ({ page }) => {
+  const agent = {
+    id: '30000000-0000-4000-8000-000000000002',
+    actor_id: '30000000-0000-4000-8000-000000000001',
+    tenant_id: user.tenant_id,
+    space_id: space.id,
+    handle: 'cto',
+    display_name: 'CTO',
+    role: 'Responsable technique',
+    instructions: '',
+    status: 'active',
+    max_concurrency: 1,
+    budget_policy: {},
+    delegation_policy: {},
+    harness: 'opencode',
+    worker_id: null,
+    workspace_id: null,
+    model: null,
+    channels: [],
+    created_at: '2026-08-20T08:00:00Z',
+  }
+  const channelMembers = [members[0]!]
+  let membershipBody: Record<string, unknown> | undefined
+  await page.routeWebSocket('**/api/v1/events/ws', () => undefined)
+  await page.route('**/api/v1/**', async (route) => {
+    const request = route.request()
+    const pathname = new URL(request.url()).pathname
+    if (pathname.endsWith('/auth/me')) return route.fulfill({ json: user })
+    if (pathname.endsWith('/spaces')) return route.fulfill({ json: [space] })
+    if (pathname.endsWith('/channels')) return route.fulfill({ json: [channel] })
+    if (pathname.endsWith(`/channels/${channel.id}/members`)) return route.fulfill({ json: channelMembers })
+    if (pathname.endsWith(`/channels/${channel.id}/messages`)) return route.fulfill({ json: [] })
+    if (pathname.endsWith('/agents') && request.method() === 'GET') return route.fulfill({ json: [agent] })
+    if (pathname.endsWith(`/agents/${agent.id}/memberships`) && request.method() === 'POST') {
+      membershipBody = request.postDataJSON() as Record<string, unknown>
+      channelMembers.push(members[1]!)
+      return route.fulfill({ status: 201, json: { id: '50000000-0000-4000-8000-000000000001', status: 'created' } })
+    }
+    if (pathname.endsWith('/permissions')) return route.fulfill({ json: [] })
+    return route.fulfill({ status: 404, json: { detail: 'Non simulé' } })
+  })
+
+  await page.goto(`/channels/${channel.id}`)
+  await page.getByRole('button', { name: 'Gérer les agents du channel' }).click()
+  await expect(page.getByRole('heading', { name: 'Gérer les agents de #client-taxi' })).toBeVisible()
+  await page.getByLabel('Agent à ajouter').selectOption(agent.id)
+  await page.getByRole('button', { name: 'Ajouter' }).click()
+
+  await expect.poll(() => membershipBody).toEqual({
+    channel_id: channel.id,
+    activation_modes: ['mention_only', 'assigned_only'],
+  })
+  await expect(page.getByRole('dialog').getByText('@cto', { exact: true })).toBeVisible()
+})
