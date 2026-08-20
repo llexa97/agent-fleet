@@ -55,6 +55,11 @@ Les outils `fleet.*` reçoivent un contexte serveur contenant l’agent, la sess
 
 Chaque worker possède un jeton aléatoire d’au moins 256 bits, affiché une seule fois à l’enregistrement et stocké haché côté serveur. Le jeton est conservé dans `/etc/agent-fleet/worker.env` en mode `0600`, lisible uniquement par root et le service via systemd. Les valeurs ne sont pas placées dans le YAML ni dans la ligne de commande.
 
+L’unité systemd garde `/root` en lecture seule, sauf les répertoires d’état
+strictement nécessaires à Codex, Claude et OpenCode (`.codex`, `.claude` et les
+répertoires XDG OpenCode). Cela permet aux harness de conserver leurs sessions
+et authentifications locales sans rendre tout le home inscriptible.
+
 La passerelle vérifie avant `hello` :
 
 1. TLS et hostname valides ;

@@ -32,7 +32,9 @@ LockPersonality=true
 SystemCallArchitectures=native
 CapabilityBoundingSet=
 AmbientCapabilities=
-ReadWritePaths=/var/lib/agent-fleet-worker -/srv/projects
+# Le home reste en lecture seule, sauf les états locaux indispensables aux
+# harness exécutés sous root dans le LXC mono-utilisateur.
+ReadWritePaths=/var/lib/agent-fleet-worker -/srv/projects -/root/.codex -/root/.claude -/root/.config/opencode -/root/.local/share/opencode -/root/.local/state/opencode -/root/.cache/opencode
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 TasksMax=1024
 LimitNOFILE=65536
