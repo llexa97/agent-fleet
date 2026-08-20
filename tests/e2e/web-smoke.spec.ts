@@ -67,3 +67,25 @@ test('un humain sélectionne une mention structurée dans un channel', async ({ 
   })
   await expect(page.getByText('Bonjour @cto fais avancer l’authentification')).toBeVisible()
 })
+
+test('OpenCode est proposé comme harness lors de la création d’un agent', async ({ page }) => {
+  await page.routeWebSocket('**/api/v1/events/ws', () => undefined)
+  await page.route('**/api/v1/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname
+    if (pathname.endsWith('/auth/me')) return route.fulfill({ json: user })
+    if (pathname.endsWith('/spaces')) return route.fulfill({ json: [space] })
+    if (pathname.endsWith('/agents')) return route.fulfill({ json: [] })
+    if (pathname.endsWith('/workers')) return route.fulfill({ json: [] })
+    if (pathname.endsWith('/channels')) return route.fulfill({ json: [] })
+    if (pathname.endsWith('/permissions')) return route.fulfill({ json: [] })
+    return route.fulfill({ status: 404, json: { detail: 'Non simulé' } })
+  })
+
+  await page.goto('/agents')
+  await page.getByRole('button', { name: 'Nouvel agent' }).click()
+  const harness = page.getByLabel('Harness')
+  await harness.selectOption('opencode')
+
+  await expect(harness).toHaveValue('opencode')
+  await expect(harness.getByRole('option', { name: 'OpenCode ACP' })).toHaveCount(1)
+})

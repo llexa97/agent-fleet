@@ -63,7 +63,7 @@ function CreateAgentDialog({ open, onOpenChange, spaces }: { open: boolean; onOp
         <label>Rôle<input required placeholder="Développement des APIs et services" value={role} onChange={(event) => setRole(event.target.value)} /></label>
         <label>Instructions<textarea rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Responsabilités, règles de travail et critères de sortie…" /></label>
         <div className="form-grid">
-          <label>Harness<select value={harness} onChange={(event) => setHarness(event.target.value)}><option value="fake">Fake ACP (démo)</option><option value="codex">Codex ACP</option><option value="claude">Claude Agent ACP</option></select></label>
+          <label>Harness<select value={harness} onChange={(event) => setHarness(event.target.value)}><option value="fake">Fake ACP (démo)</option><option value="codex">Codex ACP</option><option value="claude">Claude Agent ACP</option><option value="opencode">OpenCode ACP</option></select></label>
           <label>Worker<select value={workerId} onChange={(event) => { setWorkerId(event.target.value); setWorkspaceId('') }}><option value="">Sélection automatique</option>{workersQuery.data?.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {worker.status}</option>)}</select></label>
         </div>
         <div className="form-grid">
