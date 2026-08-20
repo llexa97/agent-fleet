@@ -115,6 +115,8 @@ env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
   uv --directory "$release_dir" sync --frozen --no-dev
+chown -R root:root "$release_dir/.venv"
+chmod -R u+rwX,go+rX "$release_dir/.venv"
 
 env \
   PNPM_HOME="$CACHE_DIR/pnpm" \
@@ -122,6 +124,8 @@ env \
 env \
   PNPM_HOME="$CACHE_DIR/pnpm" \
   pnpm --dir "$release_dir/apps/web" build
+chown -R root:root "$release_dir/apps/web/dist"
+chmod -R u+rwX,go+rX "$release_dir/apps/web/dist"
 
 if [[ ! -e "$CONFIG_DIR/control-plane.env" ]]; then
   session_secret=$(openssl rand -hex 48)
