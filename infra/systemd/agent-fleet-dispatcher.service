@@ -1,0 +1,42 @@
+[Unit]
+Description=Agent Fleet durable delivery dispatcher
+Documentation=file:/opt/agent-fleet/ARCHITECTURE.md
+Wants=network-online.target
+After=network-online.target postgresql.service redis-server.service agent-fleet-migrate.service agent-fleet-api.service
+Requires=agent-fleet-migrate.service
+
+[Service]
+Type=simple
+User=agent-fleet
+Group=agent-fleet
+WorkingDirectory=/opt/agent-fleet
+EnvironmentFile=/etc/agent-fleet/control-plane.env
+Environment=AGENT_FLEET_EMBEDDED_DISPATCHER=false
+ExecStart=/opt/agent-fleet/.venv/bin/python -m services.dispatcher.main
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=60s
+TimeoutStopSec=60s
+KillSignal=SIGTERM
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/agent-fleet
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+TasksMax=512
+LimitNOFILE=65536
+
+[Install]
+WantedBy=agent-fleet-control-plane.target

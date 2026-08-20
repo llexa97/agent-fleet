@@ -1,0 +1,34 @@
+# syntax=docker/dockerfile:1.7
+FROM ghcr.io/astral-sh/uv:0.8.13 AS uv
+
+FROM python:3.12.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_NO_CACHE=1
+
+COPY --from=uv /uv /uvx /usr/local/bin/
+
+RUN groupadd --gid 10001 agent-fleet \
+    && useradd --uid 10001 --gid agent-fleet --create-home --home-dir /var/lib/agent-fleet agent-fleet \
+    && install -d -o agent-fleet -g agent-fleet -m 0700 \
+       /var/lib/agent-fleet /var/lib/agent-fleet-worker \
+       /workspaces/fleetbase-ui
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock alembic.ini ./
+COPY apps ./apps
+COPY migrations ./migrations
+COPY packages ./packages
+COPY scripts ./scripts
+COPY services ./services
+
+RUN uv sync --frozen --no-dev --no-install-project \
+    && chown -R agent-fleet:agent-fleet /app
+
+USER agent-fleet
+
+CMD ["/app/.venv/bin/python", "-m", "services.dispatcher.main"]

@@ -1,0 +1,47 @@
+worker:
+  id: a1000000-0000-4000-8000-000000000001
+  hostname: demo-worker-a
+  labels:
+    - development
+    - git
+    - frontend
+  max_sessions: 4
+  state_dir: /var/lib/agent-fleet-worker
+
+control_plane:
+  url: ws://api.agent-fleet.internal:8000/api/v1/workers/connect
+  token_env: AGENT_FLEET_WORKER_TOKEN
+  heartbeat_seconds: 5
+  stale_after_seconds: 20
+  max_message_bytes: 1048576
+  backoff_initial_seconds: 0.25
+  backoff_max_seconds: 5
+  allowed_insecure_hosts:
+    - api.agent-fleet.internal
+
+harnesses:
+  fake:
+    executable: /app/.venv/bin/python
+    args:
+      - -m
+      - services.worker.fake_acp
+    enabled: true
+    max_instances: 4
+    env_allowlist: []
+    version_args:
+      - -m
+      - services.worker.fake_acp
+      - --version
+
+workspaces:
+  - id: fleetbase-ui-a
+    display_name: Fleetbase UI (démo)
+    root: /workspaces/fleetbase-ui
+    read_only: false
+
+mcp_proxy:
+  enabled: true
+  executable: /app/.venv/bin/python
+  args:
+    - -m
+    - services.fleet_mcp_proxy

@@ -1,0 +1,33 @@
+[Unit]
+Description=Agent Fleet database migrations
+Documentation=file:/opt/agent-fleet/DEPLOYMENT_LXC.md
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=agent-fleet
+Group=agent-fleet
+WorkingDirectory=/opt/agent-fleet
+EnvironmentFile=/etc/agent-fleet/control-plane.env
+ExecStart=/opt/agent-fleet/.venv/bin/alembic -c /opt/agent-fleet/alembic.ini upgrade head
+TimeoutStartSec=300s
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/agent-fleet
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=agent-fleet-control-plane.target

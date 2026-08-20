@@ -1,0 +1,45 @@
+worker:
+  id: a1000000-0000-4000-8000-000000000001
+  hostname: local-worker-a
+  labels:
+    - development
+    - local
+  max_sessions: 2
+  state_dir: /tmp/agent-fleet-worker-local
+
+control_plane:
+  url: ws://127.0.0.1:8000/api/v1/workers/connect
+  token_env: AGENT_FLEET_WORKER_TOKEN
+  heartbeat_seconds: 5
+  stale_after_seconds: 20
+  max_message_bytes: 1048576
+  backoff_initial_seconds: 0.25
+  backoff_max_seconds: 5
+  allow_insecure_localhost: true
+
+harnesses:
+  fake:
+    executable: /ABSOLUTE/PATH/TO/REPO/.venv/bin/python
+    args:
+      - -m
+      - services.worker.fake_acp
+    enabled: true
+    max_instances: 2
+    env_allowlist: []
+    version_args:
+      - -m
+      - services.worker.fake_acp
+      - --version
+
+workspaces:
+  - id: local-agent-fleet
+    display_name: Dépôt Agent Fleet local
+    root: /ABSOLUTE/PATH/TO/REPO
+    read_only: false
+
+mcp_proxy:
+  enabled: true
+  executable: /ABSOLUTE/PATH/TO/REPO/.venv/bin/python
+  args:
+    - -m
+    - services.fleet_mcp_proxy

@@ -1,0 +1,1 @@
+"""Paquets partagés du monorepo."""

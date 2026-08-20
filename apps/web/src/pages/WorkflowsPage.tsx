@@ -1,0 +1,25 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { CalendarClock, CheckCircle2, Plus, Webhook, Workflow as WorkflowIcon, Zap } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { PageHeader } from '../components/PageHeader'
+import { Button } from '../components/ui/Button'
+import { Dialog } from '../components/ui/Dialog'
+import { EmptyState, ErrorState, InlineError, LoadingState } from '../components/ui/Feedback'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { api } from '../lib/api'
+import { formatRelativeDate } from '../lib/format'
+import type { Space } from '../types/api'
+
+const triggerLabels: Record<string, string> = { message_posted: 'Message publié', agent_mentioned: 'Agent mentionné', task_created: 'Tâche créée', task_completed: 'Tâche terminée', schedule: 'Planification', webhook: 'Webhook' }
+
+function CreateWorkflowDialog({ open, onOpenChange, spaces }: { open: boolean; onOpenChange: (value: boolean) => void; spaces: Space[] }) {
+  const queryClient = useQueryClient(); const [spaceId, setSpaceId] = useState(''); const [name, setName] = useState(''); const [description, setDescription] = useState(''); const [trigger, setTrigger] = useState('agent_mentioned'); const [message, setMessage] = useState('')
+  const mutation = useMutation({ mutationFn: () => api.workflows.create({ space_id: spaceId, name, description, trigger_type: trigger, trigger_config: {}, actions: [{ type: 'post_message', config: { content: message || `Workflow ${name} exécuté` } }] }), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['workflows'] }); onOpenChange(false); setName(''); setDescription(''); setMessage('') } })
+  const submit = (event: FormEvent) => { event.preventDefault(); mutation.mutate() }
+  return <Dialog open={open} onOpenChange={onOpenChange} title="Créer un workflow" description="Les exécutions sont persistées, idempotentes et rattachées à une trace."><form className="form-stack" onSubmit={submit}><label>Espace<select required value={spaceId} onChange={(event) => setSpaceId(event.target.value)}><option value="" disabled>Choisir…</option>{spaces.map((space) => <option key={space.id} value={space.id}>{space.name}</option>)}</select></label><label>Nom<input required autoFocus value={name} onChange={(event) => setName(event.target.value)} /></label><label>Description<textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label><label>Déclencheur<select value={trigger} onChange={(event) => setTrigger(event.target.value)}>{Object.entries(triggerLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Message publié par l’action<input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Compte rendu automatique…" /></label><InlineError error={mutation.error} /><div className="dialog-actions"><Button variant="secondary" onClick={() => onOpenChange(false)}>Annuler</Button><Button type="submit" isLoading={mutation.isPending}>Créer le workflow</Button></div></form></Dialog>
+}
+
+export function WorkflowsPage() {
+  const [createOpen, setCreateOpen] = useState(false); const workflowsQuery = useQuery({ queryKey: ['workflows'], queryFn: api.workflows.list }); const spacesQuery = useQuery({ queryKey: ['spaces'], queryFn: api.spaces.list })
+  return <div className="standard-page"><PageHeader eyebrow="Automatisation" title="Workflows" description="Déclenchez des tâches et des agents avec des règles persistantes." actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>Nouveau workflow</Button>} />{workflowsQuery.isLoading ? <LoadingState label="Chargement des workflows…" /> : null}{workflowsQuery.error ? <ErrorState error={workflowsQuery.error} onRetry={() => void workflowsQuery.refetch()} /> : null}{!workflowsQuery.isLoading && workflowsQuery.data?.length === 0 ? <EmptyState title="Aucun workflow" description="Commencez par automatiser une mention, une tâche terminée ou un webhook." action={<Button icon={Plus} onClick={() => setCreateOpen(true)}>Créer un workflow</Button>} /> : null}<div className="workflow-grid">{workflowsQuery.data?.map((workflow) => <article className="workflow-card" key={workflow.id}><header><span className="workflow-icon">{workflow.trigger_type === 'schedule' ? <CalendarClock size={20} /> : workflow.trigger_type === 'webhook' ? <Webhook size={20} /> : <Zap size={20} />}</span><StatusBadge status={workflow.status} /></header><h2>{workflow.name}</h2><p>{workflow.description ?? 'Aucune description'}</p><div className="workflow-flow"><span>{triggerLabels[workflow.trigger_type] ?? workflow.trigger_type}</span><i /><WorkflowIcon size={15} /><i /><span>{workflow.actions.length} action{workflow.actions.length > 1 ? 's' : ''}</span></div><footer><span><CheckCircle2 size={14} /> Idempotent</span><time>{formatRelativeDate(workflow.created_at)}</time></footer></article>)}</div><CreateWorkflowDialog open={createOpen} onOpenChange={setCreateOpen} spaces={spacesQuery.data ?? []} /></div>
+}

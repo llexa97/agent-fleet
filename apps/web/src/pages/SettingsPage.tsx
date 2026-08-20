@@ -1,0 +1,30 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Check, CircleUserRound, Clock3, KeyRound, LockKeyhole, ShieldAlert, ShieldCheck, X } from 'lucide-react'
+import { useState } from 'react'
+import { useAuth } from '../auth/AuthProvider'
+import { PageHeader } from '../components/PageHeader'
+import { Button } from '../components/ui/Button'
+import { EmptyState, ErrorState, InlineError, LoadingState } from '../components/ui/Feedback'
+import { StatusBadge } from '../components/ui/StatusBadge'
+import { api } from '../lib/api'
+import { formatDateTime, formatRelativeDate, initials } from '../lib/format'
+import type { PermissionRequest } from '../types/api'
+
+type Decision = 'deny' | 'allow_once' | 'allow_session' | 'allow_agent'
+
+function PermissionCard({ permission }: { permission: PermissionRequest }) {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (decision: Decision) => api.permissions.decide(permission.id, decision),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['permissions'] }),
+  })
+  return <article className="approval-card"><header><span className="approval-icon"><ShieldAlert size={19} /></span><div><StatusBadge status={permission.status} /><time title={formatDateTime(permission.created_at)}>{formatRelativeDate(permission.created_at)}</time></div></header><h3>{permission.action_summary}</h3><p>Capacité demandée : <code>{permission.capability}</code></p>{Object.keys(permission.action_details).length > 0 ? <details><summary>Détails observables</summary><pre className="json-preview">{JSON.stringify(permission.action_details, null, 2)}</pre></details> : null}<div className="approval-actions"><Button variant="danger" size="small" icon={X} isLoading={mutation.isPending} onClick={() => mutation.mutate('deny')}>Refuser</Button><Button variant="secondary" size="small" icon={Clock3} isLoading={mutation.isPending} onClick={() => mutation.mutate('allow_once')}>Autoriser une fois</Button><Button size="small" icon={Check} isLoading={mutation.isPending} onClick={() => mutation.mutate('allow_session')}>Pour cette session</Button></div><InlineError error={mutation.error} /></article>
+}
+
+export function SettingsPage() {
+  const { user } = useAuth(); const [tab, setTab] = useState<'approvals' | 'account' | 'security'>('approvals'); const permissionsQuery = useQuery({ queryKey: ['permissions', 'all'], queryFn: () => api.permissions.list(''), refetchInterval: 15_000 }); const pending = permissionsQuery.data?.filter((permission) => permission.status === 'pending') ?? []; const decided = permissionsQuery.data?.filter((permission) => permission.status !== 'pending') ?? []
+  return <div className="standard-page"><PageHeader eyebrow="Administration" title="Settings" description="Approbations humaines, compte propriétaire et posture de sécurité." /><div className="settings-layout"><nav className="settings-nav" aria-label="Sections des paramètres"><button className={tab === 'approvals' ? 'is-active' : ''} onClick={() => setTab('approvals')}><ShieldAlert size={17} /><span>Approbations</span>{pending.length > 0 ? <em>{pending.length}</em> : null}</button><button className={tab === 'account' ? 'is-active' : ''} onClick={() => setTab('account')}><CircleUserRound size={17} /><span>Compte</span></button><button className={tab === 'security' ? 'is-active' : ''} onClick={() => setTab('security')}><LockKeyhole size={17} /><span>Sécurité</span></button></nav><section className="settings-content">{tab === 'approvals' ? <><header className="section-heading"><div><h2>Demandes d’approbation</h2><p>Une absence de réponse maintient la session en attente.</p></div></header>{permissionsQuery.isLoading ? <LoadingState label="Chargement des permissions…" /> : null}{permissionsQuery.error ? <ErrorState error={permissionsQuery.error} onRetry={() => void permissionsQuery.refetch()} /> : null}{!permissionsQuery.isLoading && pending.length === 0 ? <EmptyState title="Aucune demande en attente" description="Les actions sensibles de vos agents apparaîtront ici avant leur exécution." /> : null}<div className="approval-list">{pending.map((permission) => <PermissionCard key={permission.id} permission={permission} />)}</div>{decided.length > 0 ? <details className="decision-history"><summary>Décisions récentes ({decided.length})</summary><div>{decided.slice(0, 10).map((permission) => <p key={permission.id}><StatusBadge status={permission.status} /><span>{permission.action_summary}</span><time>{formatRelativeDate(permission.created_at)}</time></p>)}</div></details> : null}</> : null}
+      {tab === 'account' ? <><header className="section-heading"><div><h2>Compte propriétaire</h2><p>Identité utilisée pour les actions humaines et le journal d’audit.</p></div></header><article className="account-card"><span className="avatar avatar--human avatar--large">{initials(user?.display_name ?? 'A')}</span><div><h3>{user?.display_name}</h3><p>{user?.email}</p><span>Propriétaire du tenant</span></div></article><div className="settings-note"><KeyRound size={18} /><span><strong>Session côté serveur</strong><p>L’authentification utilise un cookie HttpOnly et une protection CSRF. Aucun jeton durable n’est stocké dans localStorage.</p></span></div></> : null}
+      {tab === 'security' ? <><header className="section-heading"><div><h2>Posture de sécurité</h2><p>Contrôles actifs pour cette installation.</p></div></header><div className="security-list"><article><ShieldCheck size={20} /><span><strong>Isolation des espaces</strong><p>Chaque ressource est filtrée par tenant et espace.</p></span><StatusBadge status="active" label="Actif" /></article><article><LockKeyhole size={20} /><span><strong>Approbations ACP</strong><p>Les permissions sensibles restent bloquées jusqu’à une décision humaine.</p></span><StatusBadge status="active" label="Actif" /></article><article><KeyRound size={20} /><span><strong>Identité des workers</strong><p>Jetons individuels révocables ; WSS obligatoire hors développement.</p></span><StatusBadge status="active" label="Actif" /></article></div></> : null}
+    </section></div></div>
+}

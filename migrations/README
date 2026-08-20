@@ -1,0 +1,9 @@
+Migrations Alembic du schéma PostgreSQL Agent Fleet.
+
+Créer une migration après modification des modèles :
+
+    uv run alembic revision --autogenerate -m "description"
+
+Appliquer :
+
+    uv run alembic upgrade head

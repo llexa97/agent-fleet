@@ -1,0 +1,57 @@
+worker:
+  id: 00000000-0000-4000-8000-000000000001
+  hostname: worker-lxc-01
+  labels:
+    - development
+    - git
+    - client-projects
+  max_sessions: 4
+  state_dir: /var/lib/agent-fleet-worker
+
+control_plane:
+  url: wss://agent-fleet.example.net/api/v1/workers/connect
+  token_env: AGENT_FLEET_WORKER_TOKEN
+  connect_timeout_seconds: 15
+  heartbeat_seconds: 15
+  stale_after_seconds: 45
+  max_message_bytes: 1048576
+  backoff_initial_seconds: 1
+  backoff_max_seconds: 60
+  backoff_jitter_ratio: 0.2
+
+harnesses:
+  codex:
+    executable: /usr/local/bin/codex-acp
+    args: []
+    enabled: true
+    max_instances: 4
+    env_allowlist:
+      - CODEX_API_KEY
+      - OPENAI_API_KEY
+      - NO_BROWSER
+  claude:
+    executable: /usr/local/bin/claude-agent-acp
+    args: []
+    enabled: false
+    max_instances: 2
+    env_allowlist:
+      - ANTHROPIC_API_KEY
+
+workspaces:
+  - id: fleetbase-ui
+    display_name: Fleetbase UI
+    root: /srv/projects/fleetbase-ui
+    read_only: false
+  - id: documentation
+    display_name: Documentation
+    root: /srv/projects/documentation
+    read_only: true
+
+mcp_proxy:
+  enabled: true
+  executable: /opt/agent-fleet/.venv/bin/python
+  args:
+    - -m
+    - services.fleet_mcp_proxy
+  request_timeout_seconds: 60
+  token_ttl_seconds: 86400

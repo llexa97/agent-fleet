@@ -1,0 +1,55 @@
+{
+	admin 127.0.0.1:2019
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+{$AGENT_FLEET_DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/agent-fleet-access.log {
+			roll_size 20MiB
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		format json
+	}
+
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Content-Security-Policy "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' wss:"
+	}
+
+	request_body {
+		max_size 2MiB
+	}
+
+	@metrics path /metrics /metrics/*
+	respond @metrics 404
+	@source_maps path *.map
+	respond @source_maps 404
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8000 {
+			header_up X-Forwarded-Proto {scheme}
+			header_up X-Forwarded-Host {host}
+			transport http {
+				keepalive 30s
+			}
+		}
+	}
+
+	handle {
+		root * /opt/agent-fleet/apps/web/dist
+		try_files {path} /index.html
+		file_server {
+			hide .git .env
+		}
+	}
+}

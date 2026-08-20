@@ -1,0 +1,198 @@
+name: agent-fleet
+
+x-python-service: &python-service
+  image: agent-fleet-python:dev
+  build:
+    context: ../..
+    dockerfile: infra/compose/Dockerfile.python
+  restart: unless-stopped
+  init: true
+  environment: &control-plane-environment
+    AGENT_FLEET_PRODUCT_NAME: Agent Fleet
+    AGENT_FLEET_ENVIRONMENT: development
+    AGENT_FLEET_DATABASE_URL: postgresql+asyncpg://agent_fleet:agent-fleet-dev-password@postgres:5432/agent_fleet
+    AGENT_FLEET_REDIS_URL: redis://redis:6379/0
+    # L'URL publique correspond au point d'entrée Caddy du profil `edge`.
+    # Sans ce profil, Vite reste autorisé séparément via WEB_ORIGIN.
+    AGENT_FLEET_PUBLIC_URL: http://localhost:8080
+    AGENT_FLEET_WEB_ORIGIN: http://localhost:5173
+    AGENT_FLEET_SESSION_SECRET: local-demo-session-secret-change-before-any-network-use-2026
+    AGENT_FLEET_BOOTSTRAP_TOKEN: local-demo-bootstrap-token-change-before-any-network-use
+    AGENT_FLEET_COOKIE_SECURE: "false"
+    AGENT_FLEET_TRUSTED_HOSTS: localhost,127.0.0.1,api,caddy,api.agent-fleet.internal
+    AGENT_FLEET_EMBEDDED_DISPATCHER: "false"
+    AGENT_FLEET_LOG_LEVEL: INFO
+    AGENT_FLEET_LOG_JSON: "true"
+    AGENT_FLEET_MAX_WS_MESSAGE_BYTES: "1048576"
+  networks:
+    - control
+
+services:
+  postgres:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: agent_fleet
+      POSTGRES_USER: agent_fleet
+      POSTGRES_PASSWORD: agent-fleet-dev-password
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent_fleet -d agent_fleet"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    networks:
+      - data
+
+  redis:
+    image: redis:8.2.0-bookworm
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - data
+
+  api:
+    <<: *python-service
+    command:
+      - sh
+      - -ec
+      - >-
+        /app/.venv/bin/alembic upgrade head &&
+        exec /app/.venv/bin/uvicorn apps.api.agent_fleet_api.main:app
+        --host 0.0.0.0 --port 8000 --proxy-headers
+        --forwarded-allow-ips=127.0.0.1
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - /app/.venv/bin/python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/readiness', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+    networks:
+      control:
+        aliases:
+          - api.agent-fleet.internal
+      data: {}
+
+  dispatcher:
+    <<: *python-service
+    command: ["/app/.venv/bin/python", "-m", "services.dispatcher.main"]
+    environment:
+      <<: *control-plane-environment
+      AGENT_FLEET_DISPATCHER_ID: compose-dispatcher-1
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - control
+      - data
+
+  web:
+    image: agent-fleet-web:dev
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.web
+    restart: unless-stopped
+    init: true
+    environment:
+      VITE_API_BASE: /api/v1
+      VITE_PRODUCT_NAME: Agent Fleet
+      AGENT_FLEET_API_PROXY: http://api:8000
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:5173').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    networks:
+      - control
+
+  worker-a:
+    <<: *python-service
+    command: ["/app/.venv/bin/python", "-m", "services.worker.main", "--config", "/etc/agent-fleet/worker.yaml"]
+    environment:
+      AGENT_FLEET_WORKER_TOKEN: demo-worker-a-token-change-me-at-least-32-characters
+      AGENT_FLEET_LOG_LEVEL: INFO
+    volumes:
+      - ./config/worker-a.yaml:/etc/agent-fleet/worker.yaml:ro
+      - worker_a_state:/var/lib/agent-fleet-worker
+      - worker_a_workspace:/workspaces/fleetbase-ui
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - control
+
+  worker-b:
+    <<: *python-service
+    command: ["/app/.venv/bin/python", "-m", "services.worker.main", "--config", "/etc/agent-fleet/worker.yaml"]
+    environment:
+      AGENT_FLEET_WORKER_TOKEN: demo-worker-b-token-change-me-at-least-32-characters
+      AGENT_FLEET_LOG_LEVEL: INFO
+    volumes:
+      - ./config/worker-b.yaml:/etc/agent-fleet/worker.yaml:ro
+      - worker_b_state:/var/lib/agent-fleet-worker
+      - worker_b_workspace:/workspaces/fleetbase-ui
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - control
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    profiles: [edge]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ../caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks:
+      - control
+
+volumes:
+  postgres_data:
+  worker_a_state:
+  worker_b_state:
+  worker_a_workspace:
+  worker_b_workspace:
+
+networks:
+  control:
+  data:
+    internal: true

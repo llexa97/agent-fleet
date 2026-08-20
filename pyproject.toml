@@ -1,0 +1,74 @@
+[project]
+name = "agent-fleet"
+version = "0.1.0"
+description = "Plan de controle web pour une flotte d'agents ACP sur LXC"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "agent-client-protocol==0.12.1",
+  "aiofiles>=24.1.0,<25",
+  "aiosqlite>=0.21.0,<1",
+  "alembic>=1.16.0,<2",
+  "argon2-cffi>=25.1.0,<26",
+  "asyncpg>=0.30.0,<1",
+  "email-validator>=2.2.0,<3",
+  "fastapi>=0.116.0,<1",
+  "httpx>=0.28.0,<1",
+  "mcp>=1.12.0,<2",
+  "prometheus-client>=0.22.0,<1",
+  "pydantic>=2.11.0,<3",
+  "pydantic-settings>=2.10.0,<3",
+  "python-multipart>=0.0.20,<1",
+  "pyyaml>=6.0.2,<7",
+  "redis[hiredis]>=6.2.0,<7",
+  "sqlalchemy[asyncio]>=2.0.41,<3",
+  "structlog>=25.4.0,<26",
+  "uvicorn[standard]>=0.35.0,<1",
+  "websockets>=15.0.0,<16",
+]
+
+[dependency-groups]
+dev = [
+  "mypy>=1.17.0,<2",
+  "pytest>=8.4.0,<9",
+  "pytest-asyncio>=1.1.0,<2",
+  "pytest-cov>=6.2.0,<7",
+  "ruff>=0.12.0,<1",
+  "types-aiofiles>=24.1.0,<25",
+  "types-pyyaml>=6.0.12,<7",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers"
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+  "integration: tests avec infrastructure ou services reels",
+  "external: smoke tests necessitant des identifiants de fournisseur",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC", "S", "RUF"]
+ignore = ["S101", "B008", "RUF001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106"]
+"apps/api/agent_fleet_api/config.py" = ["S105"]
+"services/dispatcher/**" = ["S311"]
+"services/worker/config.py" = ["S105"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy", "sqlalchemy.ext.mypy.plugin"]
+exclude = ["migrations/versions"]
