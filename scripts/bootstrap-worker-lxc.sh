@@ -17,7 +17,6 @@ WORKSPACE_ROOT=
 WORKSPACE_READ_ONLY=false
 HARNESS=codex
 REPLACE_CONFIG=false
-MANAGE_WORKSPACE_ACL=true
 UV_VERSION=0.12.5
 CODEX_ACP_VERSION=1.6.2
 CLAUDE_ACP_VERSION=0.70.0
@@ -47,7 +46,6 @@ Options :
   --read-only                  workspace en lecture seule
   --harness TYPE               codex, claude, both ou fake (défaut: codex)
   --replace-config             remplacer /etc/agent-fleet/worker.yaml
-  --no-manage-workspace-acl    ne pas ajouter les ACL du compte worker
   --uv-version VERSION         version uv (défaut: 0.12.5)
   --codex-acp-version VERSION  version Codex ACP (défaut: 1.6.2)
   --claude-acp-version VERSION version Claude ACP (défaut: 0.70.0)
@@ -106,10 +104,6 @@ while (($#)); do
       ;;
     --replace-config)
       REPLACE_CONFIG=true
-      shift
-      ;;
-    --no-manage-workspace-acl)
-      MANAGE_WORKSPACE_ACL=false
       shift
       ;;
     --uv-version)
@@ -178,7 +172,7 @@ esac
 
 fleet_install_base_packages
 export DEBIAN_FRONTEND=noninteractive
-apt-get install --yes --no-install-recommends acl iproute2
+apt-get install --yes --no-install-recommends iproute2
 fleet_install_uv "$UV_VERSION"
 
 codex_executable=
@@ -199,37 +193,12 @@ if [[ $HARNESS == claude || $HARNESS == both ]]; then
   "$claude_executable" --version
 fi
 
-if ! id agent-fleet-worker >/dev/null 2>&1; then
-  useradd --system --create-home --home-dir /var/lib/agent-fleet-worker \
-    --shell /usr/sbin/nologin agent-fleet-worker
-fi
-
-if [[ $MANAGE_WORKSPACE_ACL == true ]]; then
-  fleet_log "Attribution des ACL minimales du workspace au compte agent-fleet-worker"
-  parent_path=$(dirname "$WORKSPACE_ROOT")
-  while [[ $parent_path != / ]]; do
-    setfacl -m u:agent-fleet-worker:--x "$parent_path"
-    parent_path=$(dirname "$parent_path")
-  done
-  if [[ $WORKSPACE_READ_ONLY == true ]]; then
-    find "$WORKSPACE_ROOT" -type d -exec setfacl -m u:agent-fleet-worker:rx {} +
-    find "$WORKSPACE_ROOT" -type f -exec setfacl -m u:agent-fleet-worker:r-- {} +
-    find "$WORKSPACE_ROOT" -type d -exec setfacl -m d:u:agent-fleet-worker:rx {} +
-  else
-    find "$WORKSPACE_ROOT" -type d -exec setfacl -m u:agent-fleet-worker:rwx {} +
-    find "$WORKSPACE_ROOT" -type f -exec setfacl -m u:agent-fleet-worker:rw- {} +
-    find "$WORKSPACE_ROOT" -type d -exec setfacl -m d:u:agent-fleet-worker:rwx {} +
-  fi
-fi
-
-runuser -u agent-fleet-worker -- test -r "$WORKSPACE_ROOT" || \
-  fleet_die "agent-fleet-worker ne peut pas lire $WORKSPACE_ROOT"
+test -r "$WORKSPACE_ROOT" || fleet_die "root ne peut pas lire $WORKSPACE_ROOT"
 if [[ $WORKSPACE_READ_ONLY == false ]]; then
-  runuser -u agent-fleet-worker -- test -w "$WORKSPACE_ROOT" || \
-    fleet_die "agent-fleet-worker ne peut pas écrire dans $WORKSPACE_ROOT"
+  test -w "$WORKSPACE_ROOT" || fleet_die "root ne peut pas écrire dans $WORKSPACE_ROOT"
 fi
 
-install -d -o root -g agent-fleet-worker -m 0750 /etc/agent-fleet
+install -d -o root -g root -m 0700 /etc/agent-fleet
 worker_config=/etc/agent-fleet/worker.yaml
 if [[ ! -e $worker_config || $REPLACE_CONFIG == true ]]; then
   config_tmp=$(mktemp /etc/agent-fleet/.worker.yaml.XXXXXX)
@@ -290,7 +259,7 @@ if [[ ! -e $worker_config || $REPLACE_CONFIG == true ]]; then
     printf '  request_timeout_seconds: 60\n'
     printf '  token_ttl_seconds: 86400\n'
   } > "$config_tmp"
-  install -o root -g agent-fleet-worker -m 0640 "$config_tmp" "$worker_config"
+  install -o root -g root -m 0600 "$config_tmp" "$worker_config"
   rm -f -- "$config_tmp"
 else
   fleet_log "Configuration worker existante conservée; utilisez --replace-config pour la remplacer"
@@ -314,7 +283,7 @@ if [[ ! -e $worker_env ]]; then
       printf '%s\n' "$line" >> "$env_tmp"
     done < "$PROVIDER_ENV_FILE"
   fi
-  install -o root -g agent-fleet-worker -m 0600 "$env_tmp" "$worker_env"
+  install -o root -g root -m 0600 "$env_tmp" "$worker_env"
   rm -f -- "$env_tmp"
 elif [[ -n $PROVIDER_ENV_FILE ]]; then
   fleet_die "$worker_env existe déjà; fusionnez manuellement le fichier fournisseur pour éviter d'écraser un secret"

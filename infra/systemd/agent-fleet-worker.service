@@ -6,8 +6,6 @@ After=network-online.target
 
 [Service]
 Type=simple
-User=agent-fleet-worker
-Group=agent-fleet-worker
 WorkingDirectory=/opt/agent-fleet
 EnvironmentFile=/etc/agent-fleet/worker.env
 ExecStart=/opt/agent-fleet/.venv/bin/python -m services.worker.main --config /etc/agent-fleet/worker.yaml

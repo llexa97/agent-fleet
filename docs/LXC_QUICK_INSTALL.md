@@ -6,6 +6,9 @@ dans des LXC Debian ou Ubuntu utilisant systemd. Docker n'est pas utilisé.
 Ils téléchargent des paquets depuis les dépôts APT Debian/Ubuntu, Caddy et
 NodeSource, ainsi que `uv` depuis Astral et les adaptateurs ACP depuis npm.
 Exécutez-les d'abord sur des LXC de recette non privilégiés et sauvegardés.
+Les processus Agent Fleet sont exécutés par `root` dans leur LXC et aucun
+compte Linux applicatif supplémentaire n'est créé. N'ajoutez donc aucun montage
+hôte, socket Docker ou secret sans rapport avec Agent Fleet dans ces LXC.
 
 ## 1. Avant de commencer
 
@@ -144,9 +147,8 @@ Valeurs possibles pour `--harness` :
 - `both` ;
 - `fake`, pour tester sans fournisseur ni token IA.
 
-Le script ajoute par défaut des ACL au workspace pour l'utilisateur Linux
-`agent-fleet-worker`. Utiliser `--read-only` pour interdire les écritures ou
-`--no-manage-workspace-acl` lorsque les droits sont administrés séparément.
+Le worker tourne sous `root` dans son LXC. Utiliser `--read-only` pour interdire
+les écritures applicatives et réserver ce LXC aux seuls projets autorisés.
 
 Après vérification du worker dans Runners, supprimer les fichiers temporaires :
 

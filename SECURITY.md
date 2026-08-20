@@ -20,7 +20,7 @@ Ce document décrit les garanties attendues du MVP et le durcissement d’une in
 | Traversée inter-tenant/espace | filtres obligatoires, memberships, UUID immuables, tests d’isolation | les super-administrateurs restent privilégiés |
 | Worker usurpé | jeton individuel hashé, TLS, rotation/révocation, `worker_id` lié au secret | protéger le fichier d’environnement du LXC |
 | Injection de commande | exécutables/arguments approuvés dans YAML local, aucun argv libre venant du réseau | le harness lui-même peut demander des outils soumis à politique |
-| Sortie de workspace | chemin canonique, `realpath`, contrôle des parents et symlinks, utilisateur non-root | les montages du LXC doivent rester minimaux |
+| Sortie de workspace | chemin canonique, `realpath`, contrôle des parents et symlinks, sandbox systemd | le service est root dans son LXC ; aucun montage hôte inutile ne doit exister |
 | Prompt/tool malveillant | permissions centrales, budgets, approbation humaine, audit | une action explicitement autorisée conserve son risque |
 | Rejeu/double exécution | IDs, clés d’idempotence, reçus durables, leases et séquences | traitement au moins une fois, pas exactement une fois réseau |
 | Fuite dans les logs | redaction structurée, allowlist de champs, pas de corps par défaut | les sorties d’outils peuvent contenir des secrets et doivent être filtrées |
@@ -87,7 +87,7 @@ Le worker doit :
 4. contrôler chaque création par rapport au parent canonique afin de bloquer les symlinks de sortie ;
 5. appliquer `read_only` avant de lancer le harness ;
 6. ne jamais suivre un chemin `..` ou absolu fourni par le réseau ;
-7. tourner comme utilisateur non-root sans droit sur les autres projets.
+7. tourner dans un LXC non privilégié dédié ne contenant que les projets autorisés.
 
 L’isolation la plus forte reste un LXC séparé par client ou domaine sensible.
 
@@ -132,7 +132,7 @@ Pour une garantie anti-altération plus forte, exporter périodiquement les év�
 ## Réseau et LXC
 
 - LXC Proxmox non privilégié et fonctionnalités de nesting désactivées sauf besoin démontré.
-- utilisateur dédié `agent-fleet` ou `agent-fleet-worker`, sans sudo.
+- services exécutés par `root` dans le LXC : un LXC dédié et sans montage hôte est obligatoire.
 - aucun montage hôte inutile et pas de socket Docker dans le worker.
 - PostgreSQL et Redis écoutent sur loopback ou réseau local du Control Plane uniquement.
 - API sur loopback derrière Caddy ; `/metrics` limité au réseau d’administration.

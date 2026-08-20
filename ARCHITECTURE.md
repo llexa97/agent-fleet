@@ -82,7 +82,7 @@ Le dispatcher réclame des livraisons avec un verrou transactionnel équivalent 
 
 ### Worker
 
-Un worker tourne sous un utilisateur Linux dédié et ouvre uniquement une connexion WSS sortante. Il annonce un inventaire vérifié localement, maintient les heartbeats, refuse les exécutables ou workspaces reçus du réseau et supervise les processus ACP. Les commandes importantes sont dédupliquées dans un petit journal durable sous `/var/lib/agent-fleet-worker`.
+Un worker tourne sous `root` dans un LXC non privilégié dédié et ouvre uniquement une connexion WSS sortante. Il annonce un inventaire vérifié localement, maintient les heartbeats, refuse les exécutables ou workspaces reçus du réseau et supervise les processus ACP. Les commandes importantes sont dédupliquées dans un petit journal durable sous `/var/lib/agent-fleet-worker`. Ce choix simplifie l'installation mais rend l'isolation du LXC, l'absence de montages hôte et la limitation des workspaces indispensables.
 
 ### Adaptateurs ACP et fleet-mcp-proxy
 

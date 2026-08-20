@@ -7,8 +7,6 @@ Requires=agent-fleet-migrate.service
 
 [Service]
 Type=simple
-User=agent-fleet
-Group=agent-fleet
 WorkingDirectory=/opt/agent-fleet
 EnvironmentFile=/etc/agent-fleet/control-plane.env
 Environment=AGENT_FLEET_EMBEDDED_DISPATCHER=false

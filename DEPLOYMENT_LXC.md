@@ -136,7 +136,7 @@ Redis est reconstructible. Le lier à `127.0.0.1`, conserver `protected-mode yes
 Copier le modèle et remplacer chaque valeur :
 
 ```bash
-sudo install -m 0600 -o root -g agent-fleet \
+sudo install -m 0600 -o root -g root \
   infra/systemd/control-plane.env.example \
   /etc/agent-fleet/control-plane.env
 sudoedit /etc/agent-fleet/control-plane.env
@@ -206,20 +206,12 @@ La commande illustre le contrat, mais saisir aussi le mot de passe de manière n
 
 ## LXC Worker
 
-### Compte et projets
+### Exécution root et projets
 
-Créer un utilisateur système sans sudo. Donner l’accès uniquement aux projets concernés, idéalement par groupe dédié :
-
-```bash
-sudo useradd --system --create-home --home-dir /var/lib/agent-fleet-worker \
-  --shell /usr/sbin/nologin agent-fleet-worker
-sudo groupadd --force fleetbase-ui
-sudo usermod --append --groups fleetbase-ui agent-fleet-worker
-sudo chgrp -R fleetbase-ui /srv/projects/fleetbase-ui
-sudo chmod -R g+rX /srv/projects/fleetbase-ui
-```
-
-Ajouter `g+w` seulement pour un workspace en écriture. Éviter `0777`, les montages de `/`, `/root`, sockets Docker et clés SSH générales.
+Le worker est exécuté par `root` dans son LXC et l'installateur ne crée aucun
+compte Linux applicatif. Le LXC doit donc être non privilégié, dédié à Agent
+Fleet et ne monter que les projets strictement nécessaires. Ne montez jamais
+`/`, `/root`, une socket Docker ni des clés SSH générales de l'hôte.
 
 ### Installation
 
@@ -274,12 +266,12 @@ workspaces:
     read_only: false
 ```
 
-Valider les chemins comme l’utilisateur du service :
+Valider les chemins comme `root`, qui est l’utilisateur du service :
 
 ```bash
-sudo -u agent-fleet-worker test -x /usr/local/bin/codex-acp
-sudo -u agent-fleet-worker test -r /srv/projects/fleetbase-ui
-sudo -u agent-fleet-worker test -w /srv/projects/fleetbase-ui
+sudo test -x /usr/local/bin/codex-acp
+sudo test -r /srv/projects/fleetbase-ui
+sudo test -w /srv/projects/fleetbase-ui
 ```
 
 ### Adaptateurs et secrets

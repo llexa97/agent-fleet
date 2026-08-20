@@ -84,7 +84,7 @@ SOURCE_DIR=$(realpath "$SOURCE_DIR")
 [[ -f "$SOURCE_DIR/pyproject.toml" && -f "$SOURCE_DIR/uv.lock" ]] || \
   die "le répertoire source n'est pas un dépôt Agent Fleet"
 
-for command_name in realpath rsync runuser uv systemctl install; do
+for command_name in realpath rsync uv systemctl install; do
   need_command "$command_name"
 done
 
@@ -110,20 +110,14 @@ if [[ -n $TOKEN_FILE ]]; then
     die "le jeton doit être URL-safe et contenir 32 à 512 caractères"
 fi
 
-if ! id agent-fleet-worker >/dev/null 2>&1; then
-  useradd --system --create-home --home-dir "$STATE_DIR" \
-    --shell /usr/sbin/nologin agent-fleet-worker
-fi
-
 install -d -o root -g root -m 0755 "$RELEASES_DIR"
-install -d -o agent-fleet-worker -g agent-fleet-worker -m 0755 "$PYTHON_DIR"
-install -d -o agent-fleet-worker -g agent-fleet-worker -m 0700 "$STATE_DIR" "$CACHE_DIR"
-install -d -o root -g agent-fleet-worker -m 0750 "$CONFIG_DIR"
+install -d -o root -g root -m 0755 "$PYTHON_DIR"
+install -d -o root -g root -m 0700 "$STATE_DIR" "$CACHE_DIR" "$CONFIG_DIR"
 
 release_id=$(date -u +%Y%m%dT%H%M%SZ)
 release_dir="$RELEASES_DIR/$release_id"
 [[ ! -e "$release_dir" ]] || die "release déjà existante: $release_dir"
-install -d -o agent-fleet-worker -g agent-fleet-worker -m 0755 "$release_dir"
+install -d -o root -g root -m 0755 "$release_dir"
 
 rsync -a --delete \
   --exclude=.git \
@@ -134,13 +128,11 @@ rsync -a --delete \
   --exclude=test-results \
   --exclude='*.db' \
   "$SOURCE_DIR/" "$release_dir/"
-chown -R agent-fleet-worker:agent-fleet-worker "$release_dir"
-
-runuser -u agent-fleet-worker -- env \
+env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
   uv python install 3.12
-runuser -u agent-fleet-worker -- env \
+env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
   uv --directory "$release_dir" sync --frozen --no-dev
@@ -160,12 +152,12 @@ if [[ ! -e "$CONFIG_DIR/worker.yaml" ]]; then
         ;;
     esac
   done < "$release_dir/infra/systemd/worker.example.yaml" > "$config_tmp"
-  chown root:agent-fleet-worker "$config_tmp"
-  chmod 0640 "$config_tmp"
+  chown root:root "$config_tmp"
+  chmod 0600 "$config_tmp"
   mv "$config_tmp" "$CONFIG_DIR/worker.yaml"
 fi
-chown root:agent-fleet-worker "$CONFIG_DIR/worker.yaml"
-chmod 0640 "$CONFIG_DIR/worker.yaml"
+chown root:root "$CONFIG_DIR/worker.yaml"
+chmod 0600 "$CONFIG_DIR/worker.yaml"
 
 if [[ ! -e "$CONFIG_DIR/worker.env" ]]; then
   env_tmp=$(mktemp "$CONFIG_DIR/.worker.env.XXXXXX")
@@ -175,7 +167,7 @@ if [[ ! -e "$CONFIG_DIR/worker.env" ]]; then
   else
     install -m 0600 "$release_dir/infra/systemd/worker.env.example" "$env_tmp"
   fi
-  chown root:agent-fleet-worker "$env_tmp"
+  chown root:root "$env_tmp"
   chmod 0600 "$env_tmp"
   mv "$env_tmp" "$CONFIG_DIR/worker.env"
 elif [[ -n ${worker_token:-} ]]; then
@@ -195,18 +187,18 @@ elif [[ -n ${worker_token:-} ]]; then
   if [[ $token_written != true ]]; then
     printf 'AGENT_FLEET_WORKER_TOKEN=%s\n' "$worker_token" >> "$env_tmp"
   fi
-  chown root:agent-fleet-worker "$env_tmp"
+  chown root:root "$env_tmp"
   chmod 0600 "$env_tmp"
   mv "$env_tmp" "$CONFIG_DIR/worker.env"
 fi
 unset worker_token || true
-chown root:agent-fleet-worker "$CONFIG_DIR/worker.env"
+chown root:root "$CONFIG_DIR/worker.env"
 chmod 0600 "$CONFIG_DIR/worker.env"
 if [[ $ACTIVATE == true ]] && grep -q 'REPLACE_WITH' "$CONFIG_DIR/worker.env"; then
   die "jeton absent; installez-le via --token-file avant --activate"
 fi
 
-runuser -u agent-fleet-worker -- env \
+env \
   PYTHONPATH="$release_dir" \
   AGENT_FLEET_EXPECTED_WORKER_ID="$WORKER_ID" \
   AGENT_FLEET_EXPECTED_CONTROL_URL="$CONTROL_PLANE_URL" \

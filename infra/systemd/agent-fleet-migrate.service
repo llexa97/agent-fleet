@@ -6,8 +6,6 @@ After=network-online.target postgresql.service
 
 [Service]
 Type=oneshot
-User=agent-fleet
-Group=agent-fleet
 WorkingDirectory=/opt/agent-fleet
 EnvironmentFile=/etc/agent-fleet/control-plane.env
 ExecStart=/opt/agent-fleet/.venv/bin/alembic -c /opt/agent-fleet/alembic.ini upgrade head

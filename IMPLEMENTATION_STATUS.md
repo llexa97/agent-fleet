@@ -110,7 +110,7 @@ Limites : le scheduler MVP utilise des intervalles et non une syntaxe cron comp
 - Compose, Caddy, cinq unités systemd et installations Control Plane/worker ;
 - scripts bootstrap LXC tout-en-un pour installer les paquets système, `uv`,
   le Control Plane et les workers sans Docker ;
-- LXC non privilégié, utilisateur dédié, Tailscale/VLAN, firewall, limites et rollback documentés ;
+- LXC non privilégié et dédié, services root sans compte applicatif supplémentaire, Tailscale/VLAN, firewall, limites et rollback documentés ;
 - sauvegardes chiffrées `age`, checksum HMAC, restauration exacte et points de retour chiffrés ;
 - restauration PostgreSQL temporaire exécutée avec succès ;
 - migration initiale testée sur SQLite et PostgreSQL 18.3, y compris downgrade/upgrade et trigger append-only.

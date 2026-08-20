@@ -76,6 +76,7 @@ fleet_install_node() {
   local current_major=0
   local key_tmp
   local architecture
+  local global_node_modules
   if command -v node >/dev/null 2>&1; then
     current_major=$(node -p 'Number(process.versions.node.split(".")[0])')
   fi
@@ -108,7 +109,17 @@ EOF
   ((current_major >= minimum_major)) || fleet_die "Node.js ${minimum_major}+ est requis"
   fleet_need_command npm
   fleet_log "Installation de pnpm ${pnpm_version}"
-  npm install --global "pnpm@${pnpm_version}"
+  # Le bootstrap utilise umask 077 pour protéger les secrets générés. npm doit
+  # toutefois installer pnpm avec les permissions habituelles d'un outil
+  # système, y compris lorsque le bootstrap lui-même protège les secrets.
+  (
+    umask 022
+    npm install --global "pnpm@${pnpm_version}"
+  )
+  global_node_modules=$(npm root --global)
+  [[ -d $global_node_modules/pnpm ]] || fleet_die "installation globale de pnpm introuvable"
+  chmod a+rx "$global_node_modules"
+  chmod -R a+rX "$global_node_modules/pnpm"
   node --version
   pnpm --version
 }

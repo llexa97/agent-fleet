@@ -103,7 +103,7 @@ docs/                     ADR et guides d'exploitation
 
 ## Sécurité et production
 
-Le mode production impose PostgreSQL, des cookies sécurisés et des secrets remplacés. Les workers n'acceptent ni exécutable ni chemin arbitraire venant du réseau. Utiliser des LXC non privilégiés, un utilisateur Linux dédié, HTTPS/WSS via Caddy, Tailscale ou un VLAN privé, et conserver les secrets fournisseur sur le worker concerné.
+Le mode production impose PostgreSQL, des cookies sécurisés et des secrets remplacés. Les workers n'acceptent ni exécutable ni chemin arbitraire venant du réseau. Les installateurs LXC exécutent les services sous `root` sans créer de compte Linux supplémentaire : utiliser impérativement des LXC non privilégiés et dédiés, HTTPS/WSS via Caddy, Tailscale ou un VLAN privé, et conserver les secrets fournisseur sur le worker concerné.
 
 Avant un déploiement, lire [SECURITY.md](SECURITY.md) et [DEPLOYMENT_LXC.md](DEPLOYMENT_LXC.md). L'état exact de chaque phase et les limites connues sont consignés dans `IMPLEMENTATION_STATUS.md`.
 

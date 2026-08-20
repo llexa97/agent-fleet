@@ -71,7 +71,7 @@ SOURCE_DIR=$(realpath "$SOURCE_DIR")
   die "le répertoire source n'est pas un dépôt Agent Fleet"
 [[ -f "$SOURCE_DIR/apps/web/package.json" ]] || die "frontend apps/web absent"
 
-for command_name in realpath rsync runuser uv node pnpm systemctl install openssl caddy curl; do
+for command_name in realpath rsync uv node pnpm systemctl install openssl caddy curl; do
   need_command "$command_name"
 done
 node_major=$(node -p 'Number(process.versions.node.split(".")[0])')
@@ -87,19 +87,14 @@ if [[ $control_plane_was_active == true && $ACTIVATE != true ]]; then
   die "le Control Plane est actif; relancez avec --activate pour effectuer un basculement contrôlé"
 fi
 
-if ! id agent-fleet >/dev/null 2>&1; then
-  useradd --system --create-home --home-dir "$STATE_DIR" --shell /usr/sbin/nologin agent-fleet
-fi
-
 install -d -o root -g root -m 0755 "$RELEASES_DIR"
-install -d -o agent-fleet -g agent-fleet -m 0755 "$PYTHON_DIR"
-install -d -o agent-fleet -g agent-fleet -m 0700 "$STATE_DIR" "$CACHE_DIR"
-install -d -o root -g agent-fleet -m 0750 "$CONFIG_DIR"
+install -d -o root -g root -m 0755 "$PYTHON_DIR"
+install -d -o root -g root -m 0700 "$STATE_DIR" "$CACHE_DIR" "$CONFIG_DIR"
 
 release_id=$(date -u +%Y%m%dT%H%M%SZ)
 release_dir="$RELEASES_DIR/$release_id"
 [[ ! -e "$release_dir" ]] || die "release déjà existante: $release_dir"
-install -d -o agent-fleet -g agent-fleet -m 0755 "$release_dir"
+install -d -o root -g root -m 0755 "$release_dir"
 
 rsync -a --delete \
   --exclude=.git \
@@ -110,21 +105,19 @@ rsync -a --delete \
   --exclude=test-results \
   --exclude='*.db' \
   "$SOURCE_DIR/" "$release_dir/"
-chown -R agent-fleet:agent-fleet "$release_dir"
-
-runuser -u agent-fleet -- env \
+env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
   uv python install 3.12
-runuser -u agent-fleet -- env \
+env \
   UV_CACHE_DIR="$CACHE_DIR/uv" \
   UV_PYTHON_INSTALL_DIR="$PYTHON_DIR" \
   uv --directory "$release_dir" sync --frozen --no-dev
 
-runuser -u agent-fleet -- env \
+env \
   PNPM_HOME="$CACHE_DIR/pnpm" \
   pnpm --dir "$release_dir" install --frozen-lockfile
-runuser -u agent-fleet -- env \
+env \
   PNPM_HOME="$CACHE_DIR/pnpm" \
   pnpm --dir "$release_dir/apps/web" build
 
@@ -154,12 +147,12 @@ if [[ ! -e "$CONFIG_DIR/control-plane.env" ]]; then
         ;;
     esac
   done < "$release_dir/infra/systemd/control-plane.env.example" > "$env_tmp"
-  chown root:agent-fleet "$env_tmp"
+  chown root:root "$env_tmp"
   chmod 0600 "$env_tmp"
   mv "$env_tmp" "$CONFIG_DIR/control-plane.env"
   unset session_secret bootstrap_token
 fi
-chown root:agent-fleet "$CONFIG_DIR/control-plane.env"
+chown root:root "$CONFIG_DIR/control-plane.env"
 chmod 0600 "$CONFIG_DIR/control-plane.env"
 if [[ $ACTIVATE == true ]]; then
   PYTHONPATH="$release_dir" "$release_dir/.venv/bin/python" - \

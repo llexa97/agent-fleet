@@ -212,7 +212,6 @@ if [[ $RESTORE_CONFIG == true ]]; then
   [[ -f "$extract_dir/config/agent-fleet/control-plane.env" ]] || \
     die "control-plane.env absent de l'archive"
   [[ -f "$extract_dir/config/caddy/Caddyfile" ]] || die "Caddyfile absent de l'archive"
-  getent group agent-fleet >/dev/null 2>&1 || die "groupe système agent-fleet absent"
   for required_unit in agent-fleet-api.service agent-fleet-dispatcher.service \
                        agent-fleet-migrate.service agent-fleet-control-plane.target; do
     [[ -f "$extract_dir/config/systemd/$required_unit" ]] || \
@@ -314,9 +313,9 @@ if [[ $RESTORE_CONFIG == true ]]; then
 
   install -d -m 0750 "$CONFIG_DIR"
   rsync -a --delete "$extract_dir/config/agent-fleet/." "$CONFIG_DIR/"
-  chown root:agent-fleet "$CONFIG_DIR"
-  chmod 0750 "$CONFIG_DIR"
-  chown root:agent-fleet "$CONFIG_DIR/control-plane.env"
+  chown root:root "$CONFIG_DIR"
+  chmod 0700 "$CONFIG_DIR"
+  chown root:root "$CONFIG_DIR/control-plane.env"
   chmod 0600 "$CONFIG_DIR/control-plane.env"
   install -d -m 0755 /etc/caddy
   install -m 0644 "$extract_dir/config/caddy/Caddyfile" /etc/caddy/Caddyfile
