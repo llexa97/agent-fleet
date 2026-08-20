@@ -15,6 +15,7 @@ POSTGRES_PASSWORD_FILE=
 UV_VERSION=0.12.5
 PNPM_VERSION=11.19.0
 TEMP_DB_PASSWORD_FILE=/root/.agent-fleet-postgres-password
+INTERNAL_TLS=false
 
 usage() {
   cat <<'EOF'
@@ -31,6 +32,7 @@ Options :
   --postgres-user NAME            rôle PostgreSQL (défaut: agent_fleet)
   --postgres-db NAME              base PostgreSQL (défaut: agent_fleet)
   --postgres-password-file PATH   fichier 0600 avec un mot de passe URL-safe
+  --internal-tls                  CA Caddy interne pour un domaine DNS privé
   --uv-version VERSION            version uv épinglée (défaut: 0.12.5)
   --pnpm-version VERSION          version pnpm épinglée (défaut: 11.19.0)
   --help                          afficher cette aide
@@ -66,6 +68,10 @@ while (($#)); do
       (($# >= 2)) || fleet_die "valeur manquante pour --postgres-password-file"
       POSTGRES_PASSWORD_FILE=$2
       shift 2
+      ;;
+    --internal-tls)
+      INTERNAL_TLS=true
+      shift
       ;;
     --uv-version)
       (($# >= 2)) || fleet_die "valeur manquante pour --uv-version"
@@ -221,10 +227,15 @@ else
 fi
 
 fleet_log "Installation et activation du Control Plane"
-"$SOURCE_DIR/scripts/install-control-plane.sh" \
-  --source "$SOURCE_DIR" \
-  --domain "$DOMAIN" \
+install_arguments=(
+  --source "$SOURCE_DIR"
+  --domain "$DOMAIN"
   --activate
+)
+if [[ $INTERNAL_TLS == true ]]; then
+  install_arguments+=(--internal-tls)
+fi
+"$SOURCE_DIR/scripts/install-control-plane.sh" "${install_arguments[@]}"
 
 curl --fail --silent --show-error --max-time 10 \
   http://127.0.0.1:8000/api/v1/readiness >/dev/null

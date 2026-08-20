@@ -43,6 +43,9 @@ sudo ./scripts/bootstrap-control-plane-lxc.sh \
   --domain fleet.example.net
 ```
 
+Pour un nom résolu uniquement par le DNS privé, ajouter `--internal-tls`. Il
+faudra alors distribuer et approuver la CA racine Caddy sur les navigateurs.
+
 Le script installe et configure :
 
 - PostgreSQL lié à `127.0.0.1` ;

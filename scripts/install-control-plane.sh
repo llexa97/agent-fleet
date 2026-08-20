@@ -12,6 +12,7 @@ CACHE_DIR=/var/cache/agent-fleet
 PYTHON_DIR=/opt/agent-fleet-python
 DOMAIN=
 ACTIVATE=false
+INTERNAL_TLS=false
 
 usage() {
   cat <<'EOF'
@@ -20,6 +21,7 @@ Usage: sudo ./scripts/install-control-plane.sh --domain FQDN [options]
 Options:
   --source PATH       dépôt source (défaut: répertoire courant)
   --domain FQDN       domaine HTTPS public (obligatoire)
+  --internal-tls      utiliser la CA interne Caddy pour un domaine privé
   --activate          activer/démarrer après validation de la configuration
   --help              afficher cette aide
 
@@ -50,6 +52,10 @@ while (($#)); do
       ;;
     --activate)
       ACTIVATE=true
+      shift
+      ;;
+    --internal-tls)
+      INTERNAL_TLS=true
       shift
       ;;
     --help|-h)
@@ -241,8 +247,13 @@ require(
 PY
 fi
 
+caddy_tls_directive=
+if [[ $INTERNAL_TLS == true ]]; then
+  caddy_tls_directive='tls internal'
+fi
 if [[ ! -e "$CONFIG_DIR/caddy.env" ]]; then
   printf 'AGENT_FLEET_DOMAIN=%s\n' "$DOMAIN" > "$CONFIG_DIR/caddy.env"
+  printf 'AGENT_FLEET_TLS_DIRECTIVE="%s"\n' "$caddy_tls_directive" >> "$CONFIG_DIR/caddy.env"
   chown root:root "$CONFIG_DIR/caddy.env"
   chmod 0644 "$CONFIG_DIR/caddy.env"
 fi
@@ -251,11 +262,17 @@ chmod 0644 "$CONFIG_DIR/caddy.env"
 caddy_domain=$(sed -n 's/^AGENT_FLEET_DOMAIN=//p' "$CONFIG_DIR/caddy.env" | tail -n 1)
 [[ $caddy_domain == "$DOMAIN" ]] || \
   die "--domain ne correspond pas à $CONFIG_DIR/caddy.env"
+if grep -q '^AGENT_FLEET_TLS_DIRECTIVE=' "$CONFIG_DIR/caddy.env"; then
+  sed -i "s/^AGENT_FLEET_TLS_DIRECTIVE=.*/AGENT_FLEET_TLS_DIRECTIVE=\"$caddy_tls_directive\"/" \
+    "$CONFIG_DIR/caddy.env"
+else
+  printf 'AGENT_FLEET_TLS_DIRECTIVE="%s"\n' "$caddy_tls_directive" >> "$CONFIG_DIR/caddy.env"
+fi
 install -d -o caddy -g caddy -m 0750 /var/log/caddy
 touch /var/log/caddy/agent-fleet-access.log
 chown caddy:caddy /var/log/caddy/agent-fleet-access.log
 chmod 0640 /var/log/caddy/agent-fleet-access.log
-env AGENT_FLEET_DOMAIN="$caddy_domain" \
+env AGENT_FLEET_DOMAIN="$caddy_domain" AGENT_FLEET_TLS_DIRECTIVE="$caddy_tls_directive" \
   caddy validate --config "$release_dir/infra/caddy/Caddyfile" >/dev/null
 if command -v systemd-analyze >/dev/null 2>&1; then
   systemd_verify_dir=$(mktemp -d)
@@ -300,7 +317,8 @@ fi
 mv -Tf "$next_link" "$INSTALL_LINK"
 
 systemctl daemon-reload
-env AGENT_FLEET_DOMAIN="$caddy_domain" caddy validate --config /etc/caddy/Caddyfile >/dev/null
+env AGENT_FLEET_DOMAIN="$caddy_domain" AGENT_FLEET_TLS_DIRECTIVE="$caddy_tls_directive" \
+  caddy validate --config /etc/caddy/Caddyfile >/dev/null
 
 if [[ $ACTIVATE == true ]]; then
   systemctl enable --now postgresql redis-server caddy
