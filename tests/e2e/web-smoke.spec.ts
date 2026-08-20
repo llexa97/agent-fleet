@@ -84,6 +84,8 @@ test('OpenCode est proposé comme harness lors de la création d’un agent', as
   await page.goto('/agents')
   await page.getByRole('button', { name: 'Nouvel agent' }).click()
   const harness = page.getByLabel('Harness')
+  await expect(harness).toHaveValue('codex')
+  await expect(harness.getByRole('option', { name: /Fake ACP/ })).toHaveCount(0)
   await harness.selectOption('opencode')
 
   await expect(harness).toHaveValue('opencode')
