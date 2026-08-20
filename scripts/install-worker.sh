@@ -216,7 +216,16 @@ if config.control_plane.url != os.environ["AGENT_FLEET_EXPECTED_CONTROL_URL"]:
 ' >/dev/null
 
 if command -v systemd-analyze >/dev/null 2>&1; then
-  systemd-analyze verify "$release_dir/infra/systemd/agent-fleet-worker.service" >/dev/null
+  systemd_verify_dir=$(mktemp -d)
+  sed "s|/opt/agent-fleet|$release_dir|g" \
+    "$release_dir/infra/systemd/agent-fleet-worker.service" \
+    > "$systemd_verify_dir/agent-fleet-worker.service"
+  if ! systemd-analyze verify \
+    "$systemd_verify_dir/agent-fleet-worker.service" >/dev/null; then
+    rm -r -- "$systemd_verify_dir"
+    die "validation de l'unité systemd du worker en échec"
+  fi
+  rm -r -- "$systemd_verify_dir"
 fi
 
 install -m 0644 "$release_dir/infra/systemd/agent-fleet-worker.service" \

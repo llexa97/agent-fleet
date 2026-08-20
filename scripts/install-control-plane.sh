@@ -248,11 +248,24 @@ caddy_domain=$(sed -n 's/^AGENT_FLEET_DOMAIN=//p' "$CONFIG_DIR/caddy.env" | tail
 env AGENT_FLEET_DOMAIN="$caddy_domain" \
   caddy validate --config "$release_dir/infra/caddy/Caddyfile" >/dev/null
 if command -v systemd-analyze >/dev/null 2>&1; then
-  systemd-analyze verify \
-    "$release_dir/infra/systemd/agent-fleet-migrate.service" \
-    "$release_dir/infra/systemd/agent-fleet-api.service" \
-    "$release_dir/infra/systemd/agent-fleet-dispatcher.service" \
-    "$release_dir/infra/systemd/agent-fleet-control-plane.target" >/dev/null
+  systemd_verify_dir=$(mktemp -d)
+  systemd_units=(
+    agent-fleet-migrate.service
+    agent-fleet-api.service
+    agent-fleet-dispatcher.service
+    agent-fleet-control-plane.target
+  )
+  systemd_verify_paths=()
+  for unit in "${systemd_units[@]}"; do
+    sed "s|/opt/agent-fleet|$release_dir|g" \
+      "$release_dir/infra/systemd/$unit" > "$systemd_verify_dir/$unit"
+    systemd_verify_paths+=("$systemd_verify_dir/$unit")
+  done
+  if ! systemd-analyze verify "${systemd_verify_paths[@]}" >/dev/null; then
+    rm -r -- "$systemd_verify_dir"
+    die "validation des unités systemd en échec"
+  fi
+  rm -r -- "$systemd_verify_dir"
 fi
 
 for unit in \
