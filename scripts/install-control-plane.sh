@@ -251,6 +251,10 @@ chmod 0644 "$CONFIG_DIR/caddy.env"
 caddy_domain=$(sed -n 's/^AGENT_FLEET_DOMAIN=//p' "$CONFIG_DIR/caddy.env" | tail -n 1)
 [[ $caddy_domain == "$DOMAIN" ]] || \
   die "--domain ne correspond pas à $CONFIG_DIR/caddy.env"
+install -d -o caddy -g caddy -m 0750 /var/log/caddy
+touch /var/log/caddy/agent-fleet-access.log
+chown caddy:caddy /var/log/caddy/agent-fleet-access.log
+chmod 0640 /var/log/caddy/agent-fleet-access.log
 env AGENT_FLEET_DOMAIN="$caddy_domain" \
   caddy validate --config "$release_dir/infra/caddy/Caddyfile" >/dev/null
 if command -v systemd-analyze >/dev/null 2>&1; then
@@ -283,7 +287,6 @@ for unit in \
 done
 
 install -m 0644 "$release_dir/infra/caddy/Caddyfile" /etc/caddy/Caddyfile
-install -d -o caddy -g caddy -m 0750 /var/log/caddy
 install -d -m 0755 /etc/systemd/system/caddy.service.d
 install -m 0644 "$release_dir/infra/caddy/agent-fleet.conf" \
   /etc/systemd/system/caddy.service.d/agent-fleet.conf
