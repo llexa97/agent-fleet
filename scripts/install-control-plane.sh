@@ -283,6 +283,7 @@ for unit in \
 done
 
 install -m 0644 "$release_dir/infra/caddy/Caddyfile" /etc/caddy/Caddyfile
+install -d -o caddy -g caddy -m 0750 /var/log/caddy
 install -d -m 0755 /etc/systemd/system/caddy.service.d
 install -m 0644 "$release_dir/infra/caddy/agent-fleet.conf" \
   /etc/systemd/system/caddy.service.d/agent-fleet.conf
