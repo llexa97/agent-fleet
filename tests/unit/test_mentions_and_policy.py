@@ -1,13 +1,28 @@
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from apps.api.agent_fleet_api.model_base import Base
 from apps.api.agent_fleet_api.models_collaboration import Trace
+from apps.api.agent_fleet_api.schemas import RuntimeBindingInput
 from apps.api.agent_fleet_api.services.message_service import normalized_message_hash
 from apps.api.agent_fleet_api.services.orchestration_policy import check_delivery_allowed
+from packages.contracts.enums import HarnessType
 from packages.shared.time import utcnow
+
+
+def test_real_harness_requires_explicit_worker_and_workspace() -> None:
+    with pytest.raises(ValidationError):
+        RuntimeBindingInput(harness=HarnessType.CODEX)
+
+    binding = RuntimeBindingInput(
+        harness=HarnessType.OPENCODE,
+        worker_id=uuid4(),
+        workspace_id=uuid4(),
+    )
+    assert binding.workspace_id is not None
 
 
 def test_message_normalization_detects_cosmetic_repetition() -> None:

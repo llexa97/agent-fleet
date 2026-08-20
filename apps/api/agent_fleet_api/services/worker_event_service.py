@@ -175,9 +175,14 @@ class WorkerEventService:
         command.status = "acked" if ack_status in {"accepted", "duplicate"} else "rejected"
         command.acknowledged_at = utcnow()
         if command.status == "rejected":
+            worker_error = envelope.payload.get("error")
+            worker_error_type = (
+                str(worker_error.get("type")) if isinstance(worker_error, dict) else None
+            )
             command.last_error = {
                 "code": "worker_rejected",
-                "message": str(envelope.payload.get("reason", "Commande rejetée")),
+                "message": f"Le worker a rejeté la commande {command.command_type}",
+                "worker_error_type": worker_error_type,
             }
             raw_delivery_id = command.payload.get("delivery_id")
             if raw_delivery_id:
@@ -205,6 +210,11 @@ class WorkerEventService:
                     else:
                         delivery.status = "failed"
                         delivery.completed_at = utcnow()
+                        trace = await db.get(Trace, delivery.trace_id)
+                        if trace is not None and trace.status == "running":
+                            trace.status = "failed"
+                            trace.stop_reason = "worker_rejected"
+                            trace.completed_at = utcnow()
                     if queue is not None:
                         queue.lease_owner = None
                         queue.lease_expires_at = None
@@ -222,6 +232,25 @@ class WorkerEventService:
                             worker.max_sessions, worker.available_sessions + 1
                         )
                         worker.active_sessions = max(0, worker.active_sessions - 1)
+                    add_internal_event(
+                        db,
+                        event_type=f"delivery.{delivery.status}",
+                        tenant_id=delivery.tenant_id,
+                        space_id=delivery.space_id,
+                        channel_id=delivery.channel_id,
+                        actor_type="system",
+                        actor_id=None,
+                        trace_id=delivery.trace_id,
+                        idempotency_key=(
+                            f"delivery.{delivery.status}:{delivery.id}:"
+                            f"generation:{delivery.execution_generation}"
+                        ),
+                        payload={
+                            "delivery_id": str(delivery.id),
+                            "session_id": str(delivery.session_id) if delivery.session_id else None,
+                            "error": redact(command.last_error),
+                        },
+                    )
 
     async def _handle_heartbeat(
         self, db: AsyncSession, worker: Worker, envelope: WireEnvelope

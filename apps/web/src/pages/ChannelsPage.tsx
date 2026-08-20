@@ -101,6 +101,9 @@ export function ChannelsPage() {
     ['session.updated', 'agent.started', 'delivery.claimed', 'delivery.processing'].includes(latestExecutionEvent.event_type)
     ? latestExecutionEvent
     : null
+  const executionFailure = latestExecutionEvent?.event_type === 'delivery.failed'
+    ? latestExecutionEvent
+    : null
   const activeMemberCount = membersQuery.data?.filter((member) => member.actor_type === 'agent').length ?? 0
   const pendingPermissions = permissionsQuery.data?.filter((permission) => permission.status === 'pending') ?? []
 
@@ -186,6 +189,9 @@ export function ChannelsPage() {
               {messagesQuery.data?.map((message) => <MessageItem key={message.id} message={message} onReply={setReplyTo} />)}
               {recentActivity ? (
                 <div className="agent-working" role="status"><span className="avatar avatar--agent"><Bot size={15} /></span><span><strong>Un agent travaille</strong><small>Les mises à jour ACP arrivent en temps réel</small></span><i /><i /><i /></div>
+              ) : null}
+              {executionFailure ? (
+                <div className="agent-failure" role="alert"><span className="avatar avatar--agent"><Bot size={15} /></span><span><strong>L’agent n’a pas pu démarrer</strong><small>Vérifiez son worker et son workspace, puis renvoyez le message.</small></span></div>
               ) : null}
               <div ref={messageEnd} />
             </div>

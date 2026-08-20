@@ -164,6 +164,14 @@ class RuntimeBindingInput(ApiModel):
     model: str | None = Field(default=None, max_length=120)
     runner_labels: list[str] = Field(default_factory=list, max_length=64)
 
+    @model_validator(mode="after")
+    def remote_harness_requires_worker_and_workspace(self) -> "RuntimeBindingInput":
+        if self.harness != HarnessType.FAKE and (
+            self.worker_id is None or self.workspace_id is None
+        ):
+            raise ValueError("un worker et un workspace sont obligatoires pour un harness réel")
+        return self
+
 
 class AgentCreate(ApiModel):
     space_id: UUID

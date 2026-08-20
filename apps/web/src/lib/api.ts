@@ -282,6 +282,12 @@ export const api = {
           query: { worker_id: workerId, space_id: spaceId },
         }),
       ),
+    assignSpace: (workspaceId: UUID, spaceId: UUID) =>
+      apiRequest<Workspace>(`/workspaces/${workspaceId}`, {
+        method: 'PATCH',
+        body: { space_id: spaceId },
+        idempotent: true,
+      }),
   },
   permissions: {
     list: async (status = 'pending') =>

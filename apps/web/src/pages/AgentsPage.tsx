@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, InlineError, LoadingState } from '../components
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { api } from '../lib/api'
 import { formatMoney, initials } from '../lib/format'
-import type { Space } from '../types/api'
+import type { Space, Workspace } from '../types/api'
 
 function CreateAgentDialog({ open, onOpenChange, spaces }: { open: boolean; onOpenChange: (open: boolean) => void; spaces: Space[] }) {
   const queryClient = useQueryClient()
@@ -23,9 +23,19 @@ function CreateAgentDialog({ open, onOpenChange, spaces }: { open: boolean; onOp
   const [channelId, setChannelId] = useState('')
   const workersQuery = useQuery({ queryKey: ['workers'], queryFn: api.workers.list, enabled: open })
   const channelsQuery = useQuery({ queryKey: ['channels', 'all'], queryFn: () => api.channels.list(), enabled: open })
-  const workspacesQuery = useQuery({ queryKey: ['workspaces', workerId, spaceId], queryFn: () => api.workspaces.list(workerId || undefined, spaceId || undefined), enabled: open && Boolean(workerId && spaceId) })
+  const workspacesQuery = useQuery({ queryKey: ['workspaces', workerId], queryFn: () => api.workspaces.list(workerId || undefined), enabled: open && Boolean(workerId) })
+  const availableWorkspaces = (workspacesQuery.data ?? []).filter((workspace) =>
+    workspace.status === 'available' && (workspace.space_id === null || workspace.space_id === spaceId),
+  )
+  const selectedWorkspace = availableWorkspaces.find((workspace) => workspace.id === workspaceId)
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!workerId || !workspaceId || !selectedWorkspace) {
+        throw new Error('Choisissez un worker et un workspace disponibles')
+      }
+      if (selectedWorkspace.space_id === null) {
+        await api.workspaces.assignSpace(selectedWorkspace.id, spaceId)
+      }
       const agent = await api.agents.create({
         space_id: spaceId,
         handle,
@@ -34,8 +44,8 @@ function CreateAgentDialog({ open, onOpenChange, spaces }: { open: boolean; onOp
         instructions,
         runtime: {
           harness,
-          ...(workerId ? { worker_id: workerId } : {}),
-          ...(workspaceId ? { workspace_id: workspaceId } : {}),
+          worker_id: workerId,
+          workspace_id: workspaceId,
           runner_labels: [],
         },
         max_concurrency: 1,
@@ -64,10 +74,10 @@ function CreateAgentDialog({ open, onOpenChange, spaces }: { open: boolean; onOp
         <label>Instructions<textarea rows={4} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="Responsabilités, règles de travail et critères de sortie…" /></label>
         <div className="form-grid">
           <label>Harness<select value={harness} onChange={(event) => setHarness(event.target.value)}><option value="codex">Codex ACP</option><option value="claude">Claude Agent ACP</option><option value="opencode">OpenCode ACP</option></select></label>
-          <label>Worker<select value={workerId} onChange={(event) => { setWorkerId(event.target.value); setWorkspaceId('') }}><option value="">Sélection automatique</option>{workersQuery.data?.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {worker.status}</option>)}</select></label>
+          <label>Worker<select required value={workerId} onChange={(event) => { setWorkerId(event.target.value); setWorkspaceId('') }}><option value="">Choisir un worker…</option>{workersQuery.data?.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {worker.status}</option>)}</select></label>
         </div>
         <div className="form-grid">
-          <label>Workspace<select value={workspaceId} disabled={!workerId} onChange={(event) => setWorkspaceId(event.target.value)}><option value="">Aucun workspace</option>{workspacesQuery.data?.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.display_name}{workspace.read_only ? ' · lecture seule' : ''}</option>)}</select></label>
+          <label>Workspace<select required value={workspaceId} disabled={!workerId || !spaceId} onChange={(event) => setWorkspaceId(event.target.value)}><option value="">Choisir un workspace…</option>{availableWorkspaces.map((workspace: Workspace) => <option key={workspace.id} value={workspace.id}>{workspace.display_name}{workspace.space_id === null ? ' · sera associé à cet espace' : ''}{workspace.read_only ? ' · lecture seule' : ''}</option>)}</select></label>
           <label>Ajouter au channel<select value={channelId} disabled={!spaceId} onChange={(event) => setChannelId(event.target.value)}><option value="">Plus tard</option>{channelsQuery.data?.filter((channel) => channel.space_id === spaceId).map((channel) => <option key={channel.id} value={channel.id}>#{channel.name}</option>)}</select></label>
         </div>
         <InlineError error={mutation.error} />

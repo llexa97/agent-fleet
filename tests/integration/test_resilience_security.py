@@ -16,6 +16,7 @@ from apps.api.agent_fleet_api.models_execution import (
     PermissionDecision,
     PermissionRequest,
 )
+from apps.api.agent_fleet_api.models_governance import InternalEvent
 from apps.api.agent_fleet_api.models_identity import Actor, Agent, Space, Tenant
 from apps.api.agent_fleet_api.models_infrastructure import Worker, WorkerCommand
 from apps.api.agent_fleet_api.realtime import RealtimeHub
@@ -199,6 +200,64 @@ async def test_offline_worker_keeps_delivery_for_bounded_retry(demo_seeded: None
         assert queue is not None
         assert queue.pending_count == 1
         assert queue.lease_owner is None
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_final_worker_rejection_fails_trace_and_emits_terminal_event(
+    demo_seeded: None,
+) -> None:
+    await _online_worker()
+    _message_id, delivery_id = await _mention_cto(idempotency_key="resilience-worker-rejection")
+    async with SessionFactory() as db:
+        delivery = await db.get(Delivery, delivery_id)
+        assert delivery is not None
+        delivery.max_attempts = 1
+        await db.commit()
+
+    assert await _dispatch_once()
+    async with SessionFactory() as db:
+        delivery = await db.get(Delivery, delivery_id)
+        assert delivery is not None
+        assert delivery.session_id is not None
+        command = await db.scalar(
+            select(WorkerCommand).where(WorkerCommand.session_id == delivery.session_id)
+        )
+        worker = await db.get(Worker, delivery.worker_id)
+        assert command is not None
+        assert worker is not None
+        rejected = new_envelope(
+            message_type=WorkerMessageType.ACK,
+            command_id=command.id,
+            worker_id=worker.id,
+            trace_id=delivery.trace_id,
+            session_id=delivery.session_id,
+            idempotency_key=f"ack:{command.id}:rejected",
+            payload={
+                "acked_message_id": str(uuid4()),
+                "status": "rejected",
+                "reason": "worker_command_failed",
+                "error": {"code": "worker_command_failed", "type": "ValidationError"},
+            },
+        )
+        assert await WorkerEventService(get_settings()).handle(db, worker, rejected) == "accepted"
+
+    async with SessionFactory() as db:
+        delivery = await db.get(Delivery, delivery_id)
+        assert delivery is not None
+        trace = await db.get(Trace, delivery.trace_id)
+        event = await db.scalar(
+            select(InternalEvent).where(
+                InternalEvent.event_type == "delivery.failed",
+                InternalEvent.trace_id == delivery.trace_id,
+            )
+        )
+        assert trace is not None
+        assert event is not None
+        assert delivery.status == "failed"
+        assert trace.status == "failed"
+        assert trace.stop_reason == "worker_rejected"
+        assert event.channel_id == delivery.channel_id
 
 
 @pytest.mark.integration

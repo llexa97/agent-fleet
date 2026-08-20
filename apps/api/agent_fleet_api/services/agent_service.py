@@ -51,6 +51,7 @@ async def _validate_runtime_scope(
                 Workspace.id == workspace_id,
                 Workspace.tenant_id == tenant_id,
                 Workspace.space_id == space_id,
+                Workspace.status == "available",
             )
         )
         if workspace is None:
