@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from packages.contracts.enums import HarnessType
+from services.worker.adapters import OpenCodeAcpAdapter
 from services.worker.config import (
     ControlPlaneConfig,
     HarnessConfig,
@@ -15,6 +16,7 @@ from services.worker.config import (
     WorkspaceConfig,
 )
 from services.worker.errors import ConfigurationError, WorkspaceAccessError
+from services.worker.runtime import WorkerRuntime
 from services.worker.workspaces import WorkspaceResolver
 
 
@@ -81,3 +83,24 @@ def test_worker_workspace_resolution_blocks_traversal_symlinks_and_writes(
         resolver.resolve("safe", "new.txt", require_write=True)
     with pytest.raises(WorkspaceAccessError):
         resolver.resolve("missing")
+
+
+def test_worker_runtime_registers_native_opencode_acp_adapter(tmp_path: Path) -> None:
+    config = WorkerConfig(
+        worker=WorkerIdentityConfig(id=uuid4(), state_dir=tmp_path / "state"),
+        control_plane=ControlPlaneConfig(url="wss://control.example.test/worker"),
+        harnesses={
+            HarnessType.OPENCODE: HarnessConfig(
+                executable=Path("/opt/opencode/bin/opencode"),
+                args=("acp",),
+                version_args=("--version",),
+            )
+        },
+        workspaces=(WorkspaceConfig(id="project", display_name="Projet", root=tmp_path),),
+    )
+
+    runtime = object.__new__(WorkerRuntime)
+    runtime.config = config
+    adapters = runtime._build_adapters()
+
+    assert isinstance(adapters[HarnessType.OPENCODE], OpenCodeAcpAdapter)

@@ -16,6 +16,7 @@ WORKSPACE_ID=
 WORKSPACE_ROOT=
 WORKSPACE_READ_ONLY=false
 HARNESS=codex
+MAX_SESSIONS=4
 REPLACE_CONFIG=false
 UV_VERSION=0.12.5
 CODEX_ACP_VERSION=1.6.2
@@ -44,7 +45,8 @@ Options :
   --workspace-id ID            identifiant stable du workspace (obligatoire)
   --workspace-root PATH        répertoire de projet existant (obligatoire)
   --read-only                  workspace en lecture seule
-  --harness TYPE               codex, claude, both ou fake (défaut: codex)
+  --harness TYPE               codex, claude, opencode, both, all ou fake
+  --max-sessions N             concurrence totale du worker (défaut: 4)
   --replace-config             remplacer /etc/agent-fleet/worker.yaml
   --uv-version VERSION         version uv (défaut: 0.12.5)
   --codex-acp-version VERSION  version Codex ACP (défaut: 1.6.2)
@@ -52,7 +54,8 @@ Options :
   --help                       afficher cette aide
 
 Le fichier fournisseur accepte uniquement : CODEX_API_KEY, OPENAI_API_KEY,
-ANTHROPIC_API_KEY et NO_BROWSER. Les valeurs ne sont jamais affichées.
+ANTHROPIC_API_KEY, OPENCODE_API_KEY et NO_BROWSER. Les valeurs ne sont jamais
+affichées.
 EOF
 }
 
@@ -102,6 +105,11 @@ while (($#)); do
       HARNESS=$2
       shift 2
       ;;
+    --max-sessions)
+      (($# >= 2)) || fleet_die "valeur manquante pour --max-sessions"
+      MAX_SESSIONS=$2
+      shift 2
+      ;;
     --replace-config)
       REPLACE_CONFIG=true
       shift
@@ -138,9 +146,11 @@ fleet_require_supported_system
   fleet_die "UUID worker invalide"
 [[ $WORKSPACE_ID =~ ^[a-z0-9][a-z0-9._-]{0,62}$ ]] || fleet_die "workspace-id invalide"
 case "$HARNESS" in
-  codex|claude|both|fake) ;;
-  *) fleet_die "--harness doit valoir codex, claude, both ou fake" ;;
+  codex|claude|opencode|both|all|fake) ;;
+  *) fleet_die "--harness doit valoir codex, claude, opencode, both, all ou fake" ;;
 esac
+[[ $MAX_SESSIONS =~ ^[1-9][0-9]*$ ]] && ((MAX_SESSIONS <= 64)) || \
+  fleet_die "--max-sessions doit être compris entre 1 et 64"
 for version in "$UV_VERSION" "$CODEX_ACP_VERSION" "$CLAUDE_ACP_VERSION"; do
   [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][A-Za-z0-9.-]+)?$ ]] || \
     fleet_die "version invalide: $version"
@@ -177,20 +187,28 @@ fleet_install_uv "$UV_VERSION"
 
 codex_executable=
 claude_executable=
+opencode_executable=
 if [[ $HARNESS != fake ]]; then
   fleet_install_node 22 11.19.0
 fi
-if [[ $HARNESS == codex || $HARNESS == both ]]; then
+if [[ $HARNESS == codex || $HARNESS == both || $HARNESS == all ]]; then
   fleet_log "Installation de Codex ACP ${CODEX_ACP_VERSION}"
   npm install --global "@agentclientprotocol/codex-acp@${CODEX_ACP_VERSION}"
   codex_executable=$(command -v codex-acp)
   "$codex_executable" --version
 fi
-if [[ $HARNESS == claude || $HARNESS == both ]]; then
+if [[ $HARNESS == claude || $HARNESS == both || $HARNESS == all ]]; then
   fleet_log "Installation de Claude Agent ACP ${CLAUDE_ACP_VERSION}"
   npm install --global "@agentclientprotocol/claude-agent-acp@${CLAUDE_ACP_VERSION}"
   claude_executable=$(command -v claude-agent-acp)
   "$claude_executable" --version
+fi
+if [[ $HARNESS == opencode || $HARNESS == all ]]; then
+  fleet_need_command opencode
+  opencode_executable=$(command -v opencode)
+  [[ $opencode_executable == /* ]] || fleet_die "le chemin OpenCode doit être absolu"
+  fleet_log "Utilisation d'OpenCode ACP: $opencode_executable"
+  "$opencode_executable" --version
 fi
 
 test -r "$WORKSPACE_ROOT" || fleet_die "root ne peut pas lire $WORKSPACE_ROOT"
@@ -209,7 +227,7 @@ if [[ ! -e $worker_config || $REPLACE_CONFIG == true ]]; then
     printf '  id: %s\n' "$WORKER_ID"
     printf '  hostname: %s\n' "$hostname_value"
     printf '  labels: [development, git, lxc]\n'
-    printf '  max_sessions: 4\n'
+    printf '  max_sessions: %s\n' "$MAX_SESSIONS"
     printf '  state_dir: /var/lib/agent-fleet-worker\n\n'
     printf 'control_plane:\n'
     printf '  url: %s\n' "$CONTROL_PLANE_URL"
@@ -227,7 +245,7 @@ if [[ ! -e $worker_config || $REPLACE_CONFIG == true ]]; then
       printf '    executable: %s\n' "$codex_executable"
       printf '    args: []\n'
       printf '    enabled: true\n'
-      printf '    max_instances: 4\n'
+      printf '    max_instances: %s\n' "$MAX_SESSIONS"
       printf '    env_allowlist: [CODEX_API_KEY, OPENAI_API_KEY, NO_BROWSER]\n'
     fi
     if [[ -n $claude_executable ]]; then
@@ -235,15 +253,24 @@ if [[ ! -e $worker_config || $REPLACE_CONFIG == true ]]; then
       printf '    executable: %s\n' "$claude_executable"
       printf '    args: []\n'
       printf '    enabled: true\n'
-      printf '    max_instances: 2\n'
+      printf '    max_instances: %s\n' "$MAX_SESSIONS"
       printf '    env_allowlist: [ANTHROPIC_API_KEY]\n'
+    fi
+    if [[ -n $opencode_executable ]]; then
+      printf '  opencode:\n'
+      printf '    executable: %s\n' "$opencode_executable"
+      printf '    args: [acp]\n'
+      printf '    enabled: true\n'
+      printf '    max_instances: %s\n' "$MAX_SESSIONS"
+      printf '    env_allowlist: [OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENCODE_API_KEY]\n'
+      printf '    version_args: [--version]\n'
     fi
     if [[ $HARNESS == fake ]]; then
       printf '  fake:\n'
       printf '    executable: /opt/agent-fleet/.venv/bin/python\n'
       printf '    args: [-m, services.worker.fake_acp]\n'
       printf '    enabled: true\n'
-      printf '    max_instances: 4\n'
+      printf '    max_instances: %s\n' "$MAX_SESSIONS"
       printf '    env_allowlist: []\n'
       printf '    version_args: [-m, services.worker.fake_acp, --version]\n'
     fi
@@ -277,7 +304,7 @@ if [[ ! -e $worker_env ]]; then
       key=${line%%=*}
       [[ $line == *=* ]] || fleet_die "ligne fournisseur invalide"
       case "$key" in
-        CODEX_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|NO_BROWSER) ;;
+        CODEX_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|OPENCODE_API_KEY|NO_BROWSER) ;;
         *) fleet_die "variable fournisseur interdite: $key" ;;
       esac
       printf '%s\n' "$line" >> "$env_tmp"

@@ -52,7 +52,10 @@ HarnessAdapter
 └── parse_updates()
 ```
 
-`CodexAcpAdapter`, `ClaudeAcpAdapter` et `FakeAcpAdapter` partagent cette interface. Les futurs Hermes, Goose, Gemini CLI et OpenCode n’imposent donc aucune modification au modèle de l’agent logique.
+`CodexAcpAdapter`, `ClaudeAcpAdapter`, `OpenCodeAcpAdapter` et `FakeAcpAdapter`
+partagent cette interface. OpenCode est lancé via son transport ACP natif
+`opencode acp`. Les futurs Hermes, Goose et Gemini CLI n’imposent donc aucune
+modification au modèle de l’agent logique.
 
 ## Découverte et lancement
 
@@ -72,6 +75,13 @@ harnesses:
     enabled: true
     max_instances: 2
     env_allowlist: [ANTHROPIC_API_KEY]
+  opencode:
+    executable: /root/.opencode/bin/opencode
+    args: [acp]
+    enabled: true
+    max_instances: 2
+    env_allowlist: [OPENAI_API_KEY, ANTHROPIC_API_KEY, OPENCODE_API_KEY]
+    version_args: [--version]
 ```
 
 Le worker vérifie actuellement que le chemin configuré est absolu, désigne un fichier et est exécutable, puis relève sa version. Le contrôle strict du propriétaire et des bits d’écriture du binaire reste un durcissement de déploiement à ajouter ; les permissions Linux/systemd doivent donc empêcher sa modification par l’utilisateur du harness. Le processus reçoit seulement les variables allowlistées et le workspace canonique est transmis par `cwd` à `session/new`/reprise. La commande réseau choisit `harness_type`, jamais `executable` ou `args`.

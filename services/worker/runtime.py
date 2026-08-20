@@ -34,6 +34,7 @@ from .adapters import (
     FakeAcpAdapter,
     HarnessAdapter,
     HarnessProcess,
+    OpenCodeAcpAdapter,
     SessionSpec,
 )
 from .config import HarnessConfig, WorkerConfig
@@ -720,6 +721,7 @@ class WorkerRuntime:
             HarnessType.CODEX: CodexAcpAdapter,
             HarnessType.CLAUDE: ClaudeAcpAdapter,
             HarnessType.FAKE: FakeAcpAdapter,
+            HarnessType.OPENCODE: OpenCodeAcpAdapter,
         }
         adapters: dict[HarnessType, HarnessAdapter] = {}
         for harness_type, harness_config in self.config.harnesses.items():

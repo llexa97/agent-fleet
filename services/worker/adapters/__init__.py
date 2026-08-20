@@ -12,6 +12,7 @@ from .base import (
 from .claude import ClaudeAcpAdapter
 from .codex import CodexAcpAdapter
 from .fake import FakeAcpAdapter
+from .opencode import OpenCodeAcpAdapter
 
 __all__ = [
     "AdapterCapabilities",
@@ -21,6 +22,7 @@ __all__ = [
     "HarnessAdapter",
     "HarnessDiscovery",
     "HarnessProcess",
+    "OpenCodeAcpAdapter",
     "PermissionHandler",
     "SessionSpec",
     "UpdateHandler",

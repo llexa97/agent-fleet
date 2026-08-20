@@ -77,6 +77,7 @@ fleet_install_node() {
   local key_tmp
   local architecture
   local global_node_modules
+  local global_node_bin
   if command -v node >/dev/null 2>&1; then
     current_major=$(node -p 'Number(process.versions.node.split(".")[0])')
   fi
@@ -118,8 +119,13 @@ EOF
   )
   global_node_modules=$(npm root --global)
   [[ -d $global_node_modules/pnpm ]] || fleet_die "installation globale de pnpm introuvable"
+  global_node_bin="$(npm prefix --global)/bin"
+  [[ -x $global_node_bin/pnpm ]] || fleet_die "exécutable pnpm global introuvable"
   chmod a+rx "$global_node_modules"
   chmod -R a+rX "$global_node_modules/pnpm"
+  # Certaines installations Node autonomes utilisent /opt et n'ajoutent pas
+  # leur préfixe npm global au PATH du shell non interactif.
+  export PATH="$global_node_bin:$PATH"
   node --version
   pnpm --version
 }

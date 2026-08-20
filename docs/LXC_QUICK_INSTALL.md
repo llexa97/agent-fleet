@@ -140,14 +140,17 @@ sudo ./scripts/bootstrap-worker-lxc.sh \
   --provider-env-file /root/agent-fleet-provider.env \
   --workspace-id fleetbase-ui \
   --workspace-root /srv/projects/fleetbase-ui \
-  --harness codex
+  --harness all \
+  --max-sessions 2
 ```
 
 Valeurs possibles pour `--harness` :
 
 - `codex` ;
 - `claude` ;
+- `opencode`, qui utilise le serveur ACP natif `opencode acp` déjà installé ;
 - `both` ;
+- `all`, pour Codex, Claude et OpenCode ;
 - `fake`, pour tester sans fournisseur ni token IA.
 
 Le worker tourne sous `root` dans son LXC. Utiliser `--read-only` pour interdire
