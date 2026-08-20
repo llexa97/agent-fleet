@@ -9,6 +9,7 @@ Requires=agent-fleet-migrate.service
 Type=simple
 WorkingDirectory=/opt/agent-fleet
 EnvironmentFile=/etc/agent-fleet/control-plane.env
+Environment=HOME=/var/lib/agent-fleet
 ExecStart=/opt/agent-fleet/.venv/bin/uvicorn apps.api.agent_fleet_api.main:app --host 127.0.0.1 --port 8000 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=on-failure
 RestartSec=3s

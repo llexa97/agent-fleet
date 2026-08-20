@@ -9,6 +9,7 @@ Requires=agent-fleet-migrate.service
 Type=simple
 WorkingDirectory=/opt/agent-fleet
 EnvironmentFile=/etc/agent-fleet/control-plane.env
+Environment=HOME=/var/lib/agent-fleet
 Environment=AGENT_FLEET_EMBEDDED_DISPATCHER=false
 ExecStart=/opt/agent-fleet/.venv/bin/python -m services.dispatcher.main
 Restart=on-failure
